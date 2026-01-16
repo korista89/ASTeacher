@@ -21,6 +21,7 @@
       touch-action: manipulation;
       color: #e2e8f0;
       min-height: 100vh;
+      line-height: 1.6;
     }
     
     .scrollable {
@@ -458,6 +459,10 @@
 
     /* 반응형 디자인 */
     @media (max-width: 768px) {
+      body {
+        line-height: 1.75;
+      }
+
       .timetable {
         grid-template-columns: 60px repeat(5, 1fr);
         font-size: 11px;
@@ -1461,6 +1466,30 @@
                 ✓ CSV 동기화 (구글시트 연동)<br/>
                 ✓ 접기/펼치기 기능
               </p>
+
+              <p style={{ color: 'rgba(255,255,255,0.75)', marginBottom: 16, lineHeight: 1.8 }}>
+                이 사이트는 특수교사가 수업 준비, 학생 지원, 일정 관리를 한 곳에서 정리할 수 있도록 돕는
+                통합 관리 시스템의 Baseline v0입니다.
+              </p>
+
+              <div
+                style={{
+                  marginBottom: 24,
+                  padding: 16,
+                  borderRadius: 12,
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                }}
+              >
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: 'white', marginBottom: 10 }}>
+                  🧭 향후 추가될 기능 (예정)
+                </h3>
+                <ul style={{ margin: '0 0 0 18px', color: 'rgba(255,255,255,0.75)', lineHeight: 1.8 }}>
+                  <li>개별 학생 지원 기록 및 평가 추적</li>
+                  <li>수업/업무 일정을 통합한 캘린더 뷰</li>
+                  <li>공유 템플릿과 체크리스트 기반 협업</li>
+                </ul>
+              </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
                 {[
