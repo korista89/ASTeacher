@@ -8,6 +8,8 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -456,27 +458,280 @@
       color: #10b981;
     }
 
-    /* 반응형 디자인 */
-    @media (max-width: 768px) {
+    /* 반응형 디자인 - 모바일 최적화 */
+
+    /* 햄버거 메뉴 */
+    .hamburger-menu {
+      display: none;
+      flex-direction: column;
+      gap: 4px;
+      padding: 10px;
+      background: rgba(99, 102, 241, 0.3);
+      border: 1px solid rgba(99, 102, 241, 0.5);
+      border-radius: 8px;
+      cursor: pointer;
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1001;
+    }
+
+    .hamburger-line {
+      width: 25px;
+      height: 3px;
+      background: white;
+      border-radius: 2px;
+      transition: all 0.3s;
+    }
+
+    .mobile-nav-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.9);
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      padding: 80px 20px 20px;
+      overflow-y: auto;
+    }
+
+    .mobile-nav-close {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      font-size: 32px;
+      color: white;
+      cursor: pointer;
+      padding: 10px;
+    }
+
+    /* 검색바 스타일 */
+    .search-container {
+      position: sticky;
+      top: 0;
+      z-index: 999;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(10px);
+      padding: 12px 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 12px 40px 12px 16px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      color: white;
+      font-size: 14px;
+      outline: none;
+      transition: all 0.3s;
+    }
+
+    .search-input:focus {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+    }
+
+    .search-results {
+      position: absolute;
+      top: 100%;
+      left: 20px;
+      right: 20px;
+      background: rgba(15, 23, 42, 0.98);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      margin-top: 8px;
+      max-height: 400px;
+      overflow-y: auto;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .search-result-item {
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .search-result-item:hover {
+      background: rgba(59, 130, 246, 0.2);
+    }
+
+    /* 하단 네비게이션 (모바일) */
+    .bottom-nav {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(10px);
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 8px;
+      z-index: 100;
+      box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.4);
+    }
+
+    .bottom-nav-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+    }
+
+    .bottom-nav-btn {
+      padding: 8px;
+      background: transparent;
+      border: none;
+      border-radius: 8px;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s;
+    }
+
+    .bottom-nav-btn.active {
+      background: rgba(99, 102, 241, 0.3);
+      color: white;
+    }
+
+    .bottom-nav-btn span {
+      font-size: 20px;
+    }
+
+    /* 태블릿 (768px - 1024px) */
+    @media (max-width: 1024px) and (min-width: 768px) {
       .timetable {
-        grid-template-columns: 60px repeat(5, 1fr);
-        font-size: 11px;
+        grid-template-columns: 70px repeat(5, 1fr);
+        font-size: 12px;
       }
-      
+
       .student-eval-grid {
-        grid-template-columns: 80px repeat(6, 1fr);
-        gap: 4px;
-        font-size: 11px;
+        grid-template-columns: 100px repeat(6, 1fr);
+        gap: 6px;
+        font-size: 12px;
+      }
+
+      .modal-content {
+        max-width: 700px;
+        padding: 20px;
+      }
+    }
+
+    /* 모바일 (<768px) */
+    @media (max-width: 768px) {
+      body {
+        padding-bottom: 70px;
+      }
+
+      .hamburger-menu {
+        display: flex;
+      }
+
+      .bottom-nav {
+        display: block;
+      }
+
+      .timetable {
+        grid-template-columns: 50px repeat(5, 1fr);
+        font-size: 10px;
+        gap: 1px;
+      }
+
+      .student-eval-grid {
+        grid-template-columns: 70px repeat(6, 1fr);
+        gap: 3px;
+        font-size: 10px;
       }
 
       .timetable-cell {
-        min-height: 80px;
-        padding: 8px;
+        min-height: 70px;
+        padding: 6px;
       }
 
       .lesson-card {
         padding: 6px;
         font-size: 10px;
+        margin-bottom: 4px;
+      }
+
+      .modal-content {
+        max-width: 100%;
+        width: 100%;
+        max-height: 100vh;
+        border-radius: 0;
+        padding: 16px;
+      }
+
+      .chart-container {
+        height: 250px;
+        padding: 12px;
+      }
+
+      /* 카드 뷰로 변환 */
+      .mobile-card-view {
+        display: block !important;
+      }
+
+      .mobile-card-item {
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        margin-bottom: 12px;
+      }
+
+      /* 네비게이션 숨김 (하단 네비게이션 사용) */
+      .desktop-nav {
+        display: none !important;
+      }
+
+      /* 검색바 모바일 최적화 */
+      .search-container {
+        padding: 10px 15px;
+      }
+
+      .search-input {
+        font-size: 16px; /* iOS 줌 방지 */
+      }
+    }
+
+    /* 가로 모드 */
+    @media (max-width: 768px) and (orientation: landscape) {
+      .bottom-nav {
+        padding: 4px;
+      }
+
+      .bottom-nav-btn {
+        padding: 6px;
+        font-size: 10px;
+      }
+
+      .bottom-nav-btn span {
+        font-size: 16px;
+      }
+    }
+
+    /* 스와이프 제스처 지원 */
+    .swipeable {
+      touch-action: pan-y;
+      user-select: none;
+    }
+
+    /* 터치 피드백 */
+    @media (hover: none) and (pointer: coarse) {
+      button:active, .clickable:active {
+        transform: scale(0.95);
+        opacity: 0.8;
       }
     }
 
@@ -611,6 +866,31 @@
       5: { label: '목표달성', color: '#10b981', description: '독립적 수행' },
     };
 
+    // 행동 유형 (PBS/행동지원)
+    const BEHAVIOR_TYPES = {
+      TARGET: { label: '표적행동', color: '#ef4444', icon: '🎯' },
+      REPLACEMENT: { label: '대체행동', color: '#10b981', icon: '✨' },
+      POSITIVE: { label: '긍정행동', color: '#3b82f6', icon: '👍' },
+    };
+
+    // 일반적인 행동 목록 (빠른 추가용)
+    const COMMON_BEHAVIORS = [
+      '소리지르기', '자리이탈', '물건던지기', '자해행동', '공격행동',
+      '과제거부', '주의집중', '긍정적 상호작용', '지시따르기', '자기조절'
+    ];
+
+    // 일반적인 선행사건
+    const COMMON_ANTECEDENTS = [
+      '과제제시', '또래상호작용', '전환상황', '요구거부', '감각자극',
+      '관심요구', '회피', '예측불가능한 상황'
+    ];
+
+    // 일반적인 후속결과
+    const COMMON_CONSEQUENCES = [
+      '관심제공', '과제중단', '토큰제공', '구두칭찬', '무시',
+      '진정시간', '선택권제공', '대체행동촉구'
+    ];
+
     const DEFAULT_STATE = {
       points: 0,
       level: 1,
@@ -637,6 +917,7 @@
       studentEvals: {}, // 학생별 평가 데이터 { lessonId: { studentId: score } }
       collapsedItems: {},
       alertedSchedules: {},
+      recentSearches: [], // 최근 검색 기록 (최대 10개)
     };
 
     function loadState() {
@@ -659,6 +940,7 @@
           studentEvals: parsed.studentEvals || {},
           collapsedItems: parsed.collapsedItems || {},
           alertedSchedules: parsed.alertedSchedules || {},
+          recentSearches: Array.isArray(parsed.recentSearches) ? parsed.recentSearches : [],
         };
       } catch {
         return DEFAULT_STATE;
@@ -784,6 +1066,41 @@
       if (!task.steps || task.steps.length === 0) return task.progress || 0;
       const completed = task.steps.filter(s => s.done).length;
       return Math.round((completed / task.steps.length) * 100);
+    }
+
+    // 행동 로그 CSV 내보내기
+    function exportBehaviorLogCSV(behaviorLog) {
+      const headers = ['ID', '날짜시간', '학생이름', '행동유형', '선행사건', '행동', '후속결과', '빈도', '강도', '지속시간(분)', '중재노트'];
+      const rows = [headers];
+
+      behaviorLog.forEach(log => {
+        rows.push([
+          log.id,
+          new Date(log.timestamp).toLocaleString('ko-KR'),
+          log.studentName || '',
+          BEHAVIOR_TYPES[log.behaviorType]?.label || log.behaviorType,
+          log.antecedent || '',
+          log.behavior || '',
+          log.consequence || '',
+          log.frequency || 1,
+          log.intensity || 1,
+          log.duration || 0,
+          log.interventionNote || ''
+        ]);
+      });
+
+      exportToCSV(rows, `행동로그_${new Date().toISOString().slice(0,10)}.csv`);
+    }
+
+    // 차트를 PNG로 내보내기
+    function exportChartAsPNG(chartId, filename) {
+      const canvas = document.getElementById(chartId);
+      if (canvas) {
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      }
     }
 
     // 원형 타이머 컴포넌트
@@ -1104,6 +1421,14 @@
       const [editingLesson, setEditingLesson] = useState(null);
       const [showAlert, setShowAlert] = useState(null);
       const [selectedStudent, setSelectedStudent] = useState(null);
+      const [searchQuery, setSearchQuery] = useState('');
+      const [searchResults, setSearchResults] = useState([]);
+      const [showSearch, setShowSearch] = useState(false);
+      const [editingBehavior, setEditingBehavior] = useState(null);
+      const [showMobileMenu, setShowMobileMenu] = useState(false);
+      const [behaviorFilter, setBehaviorFilter] = useState({ dateRange: 30, student: 'ALL', behaviorType: 'ALL' });
+      const [reportType, setReportType] = useState('weekly');
+      const searchInputRef = useRef(null);
 
       useEffect(() => {
         saveState(state);
@@ -1118,6 +1443,102 @@
       useEffect(() => {
         requestNotificationPermission();
       }, []);
+
+      // 키보드 단축키 (Ctrl/Cmd + K로 검색 열기)
+      useEffect(() => {
+        const handleKeyDown = (e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            setShowSearch(true);
+            setTimeout(() => searchInputRef.current?.focus(), 100);
+          }
+          if (e.key === 'Escape' && showSearch) {
+            setShowSearch(false);
+            setSearchQuery('');
+            setSearchResults([]);
+          }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+      }, [showSearch]);
+
+      // 실시간 검색 기능
+      useEffect(() => {
+        if (!searchQuery.trim()) {
+          setSearchResults([]);
+          return;
+        }
+
+        const query = searchQuery.toLowerCase();
+        const results = [];
+
+        // 수업 검색
+        state.lessons.forEach(lesson => {
+          if (lesson.subject?.toLowerCase().includes(query) ||
+              lesson.topic?.toLowerCase().includes(query) ||
+              lesson.goal?.toLowerCase().includes(query)) {
+            results.push({
+              type: '수업',
+              title: lesson.subject,
+              subtitle: `${lesson.dayOfWeek}요일 ${lesson.period} - ${lesson.topic || ''}`,
+              data: lesson,
+              action: () => { setEditingLesson(lesson); setShowSearch(false); }
+            });
+          }
+        });
+
+        // 과제 검색
+        state.tasks.forEach(task => {
+          if (task.title?.toLowerCase().includes(query)) {
+            results.push({
+              type: '과제',
+              title: task.title,
+              subtitle: `${CATEGORIES[task.category]?.label} - ${PRIORITIES[task.priority]?.label}`,
+              data: task,
+              action: () => { setView('tasks'); setShowSearch(false); }
+            });
+          }
+        });
+
+        // 일정 검색
+        state.schedules.forEach(schedule => {
+          if (schedule.name?.toLowerCase().includes(query)) {
+            results.push({
+              type: '일정',
+              title: schedule.name,
+              subtitle: new Date(schedule.arrivalTs).toLocaleString('ko-KR'),
+              data: schedule,
+              action: () => { setView('schedule'); setShowSearch(false); }
+            });
+          }
+        });
+
+        // 행동 로그 검색
+        state.behaviorLog.forEach(log => {
+          if (log.behavior?.toLowerCase().includes(query) ||
+              log.studentName?.toLowerCase().includes(query) ||
+              log.interventionNote?.toLowerCase().includes(query)) {
+            results.push({
+              type: '행동',
+              title: `${log.studentName} - ${log.behavior}`,
+              subtitle: new Date(log.timestamp).toLocaleString('ko-KR'),
+              data: log,
+              action: () => { setView('behavior'); setEditingBehavior(log); setShowSearch(false); }
+            });
+          }
+        });
+
+        setSearchResults(results.slice(0, 20)); // 최대 20개만 표시
+      }, [searchQuery, state.lessons, state.tasks, state.schedules, state.behaviorLog]);
+
+      // 검색 기록 저장
+      const saveSearchHistory = (query) => {
+        if (!query.trim()) return;
+        setState(p => ({
+          ...p,
+          recentSearches: [query, ...p.recentSearches.filter(s => s !== query)].slice(0, 10)
+        }));
+      };
 
       // 출발 알람 핸들러 (수정: 제대로 울리도록)
       const handleScheduleAlert = useCallback((scheduleId) => {
@@ -1412,6 +1833,160 @@
         e.target.value = '';
       };
 
+      // 행동 로그 추가/수정
+      const saveBehaviorLog = (behaviorLog) => {
+        if (behaviorLog.id) {
+          // 수정
+          setState(p => ({
+            ...p,
+            behaviorLog: p.behaviorLog.map(b => b.id === behaviorLog.id ? behaviorLog : b)
+          }));
+        } else {
+          // 추가
+          setState(p => ({
+            ...p,
+            behaviorLog: [...p.behaviorLog, { ...behaviorLog, id: uuid(), timestamp: nowMs() }]
+          }));
+        }
+        setEditingBehavior(null);
+      };
+
+      // 행동 로그 삭제
+      const deleteBehaviorLog = (logId) => {
+        if (confirm('정말 삭제하시겠습니까?')) {
+          setState(p => ({
+            ...p,
+            behaviorLog: p.behaviorLog.filter(b => b.id !== logId)
+          }));
+        }
+      };
+
+      // 주간 수업 보고서 생성
+      const generateWeeklyLessonReport = () => {
+        const now = Date.now();
+        const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
+        const recentLessons = state.lessons.filter(l => l.date && l.date >= weekAgo);
+
+        const headers = ['주간 수업 보고서', '', '', ''];
+        const rows = [
+          headers,
+          ['날짜', '과목', '제재', '목표'],
+          ...recentLessons.map(l => [
+            l.date ? new Date(l.date).toLocaleDateString('ko-KR') : '',
+            l.subject || '',
+            l.topic || '',
+            l.goal || ''
+          ])
+        ];
+
+        exportToCSV(rows, `주간수업보고서_${new Date().toISOString().slice(0,10)}.csv`);
+      };
+
+      // 월간 행동 보고서 생성
+      const generateMonthlyBehaviorReport = () => {
+        const now = Date.now();
+        const monthAgo = now - 30 * 24 * 60 * 60 * 1000;
+        const recentBehaviors = state.behaviorLog.filter(b => b.timestamp >= monthAgo);
+
+        // 행동 유형별 집계
+        const behaviorCounts = {};
+        recentBehaviors.forEach(b => {
+          const type = BEHAVIOR_TYPES[b.behaviorType]?.label || b.behaviorType;
+          behaviorCounts[type] = (behaviorCounts[type] || 0) + 1;
+        });
+
+        const headers = ['월간 행동 보고서', '', ''];
+        const rows = [
+          headers,
+          ['기간', `${new Date(monthAgo).toLocaleDateString('ko-KR')} ~ ${new Date(now).toLocaleDateString('ko-KR')}`, ''],
+          ['총 기록 수', recentBehaviors.length, ''],
+          [],
+          ['행동 유형', '발생 횟수', '비율(%)'],
+          ...Object.entries(behaviorCounts).map(([type, count]) => [
+            type,
+            count,
+            ((count / recentBehaviors.length) * 100).toFixed(1)
+          ])
+        ];
+
+        exportToCSV(rows, `월간행동보고서_${new Date().toISOString().slice(0,10)}.csv`);
+      };
+
+      // PDF 보고서 생성
+      const generatePDFReport = async (reportType) => {
+        try {
+          const { jsPDF } = window.jspdf;
+          const doc = new jsPDF();
+
+          // 한글 폰트 설정 (기본 폰트 사용)
+          doc.setFont('helvetica');
+
+          let yPos = 20;
+
+          if (reportType === 'weekly') {
+            doc.setFontSize(18);
+            doc.text('Weekly Lesson Report', 20, yPos);
+            yPos += 15;
+
+            doc.setFontSize(12);
+            const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+            const recentLessons = state.lessons.filter(l => l.date && l.date >= weekAgo);
+
+            doc.text(`Period: ${new Date(weekAgo).toLocaleDateString()} - ${new Date().toLocaleDateString()}`, 20, yPos);
+            yPos += 10;
+            doc.text(`Total Lessons: ${recentLessons.length}`, 20, yPos);
+            yPos += 15;
+
+            recentLessons.forEach(lesson => {
+              if (yPos > 270) {
+                doc.addPage();
+                yPos = 20;
+              }
+              doc.text(`Subject: ${lesson.subject || ''}`, 20, yPos);
+              yPos += 7;
+              doc.text(`Topic: ${lesson.topic || ''}`, 20, yPos);
+              yPos += 7;
+              doc.text(`Goal: ${lesson.goal || ''}`, 20, yPos);
+              yPos += 12;
+            });
+          } else if (reportType === 'monthly') {
+            doc.setFontSize(18);
+            doc.text('Monthly Behavior Report', 20, yPos);
+            yPos += 15;
+
+            doc.setFontSize(12);
+            const monthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+            const recentBehaviors = state.behaviorLog.filter(b => b.timestamp >= monthAgo);
+
+            doc.text(`Period: ${new Date(monthAgo).toLocaleDateString()} - ${new Date().toLocaleDateString()}`, 20, yPos);
+            yPos += 10;
+            doc.text(`Total Incidents: ${recentBehaviors.length}`, 20, yPos);
+            yPos += 15;
+
+            const behaviorCounts = {};
+            recentBehaviors.forEach(b => {
+              const type = BEHAVIOR_TYPES[b.behaviorType]?.label || b.behaviorType;
+              behaviorCounts[type] = (behaviorCounts[type] || 0) + 1;
+            });
+
+            Object.entries(behaviorCounts).forEach(([type, count]) => {
+              if (yPos > 270) {
+                doc.addPage();
+                yPos = 20;
+              }
+              doc.text(`${type}: ${count} incidents (${((count/recentBehaviors.length)*100).toFixed(1)}%)`, 20, yPos);
+              yPos += 10;
+            });
+          }
+
+          doc.save(`${reportType}_report_${new Date().toISOString().slice(0,10)}.pdf`);
+          alert('PDF 보고서가 생성되었습니다!');
+        } catch (error) {
+          console.error('PDF 생성 오류:', error);
+          alert('PDF 생성 중 오류가 발생했습니다.');
+        }
+      };
+
       const styles = {
         container: {
           maxWidth: 1400,
@@ -1541,15 +2116,113 @@
             </div>
           </div>
 
-          <div style={styles.nav}>
+          {/* 검색 바 */}
+          {showSearch && (
+            <div className="search-container" style={{ position: 'relative', marginBottom: 20 }}>
+              <input
+                ref={searchInputRef}
+                type="text"
+                className="search-input"
+                placeholder="🔍 검색... (Ctrl/Cmd + K)"
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); saveSearchHistory(e.target.value); }}
+              />
+              {searchResults.length > 0 && (
+                <div className="search-results">
+                  {searchResults.map((result, idx) => (
+                    <div
+                      key={idx}
+                      className="search-result-item"
+                      onClick={result.action}
+                    >
+                      <div style={{ fontSize: 12, color: '#8b5cf6', fontWeight: 700, marginBottom: 4 }}>
+                        {result.type}
+                      </div>
+                      <div style={{ fontSize: 14, color: 'white', fontWeight: 600, marginBottom: 2 }}>
+                        {result.title}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
+                        {result.subtitle}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {state.recentSearches.length > 0 && searchQuery === '' && (
+                <div className="search-results">
+                  <div style={{ padding: '12px 16px', fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 700 }}>
+                    최근 검색
+                  </div>
+                  {state.recentSearches.map((search, idx) => (
+                    <div
+                      key={idx}
+                      className="search-result-item"
+                      onClick={() => setSearchQuery(search)}
+                    >
+                      <div style={{ fontSize: 14, color: 'white' }}>
+                        🕒 {search}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 햄버거 메뉴 (모바일) */}
+          <div className="hamburger-menu" onClick={() => setShowMobileMenu(true)}>
+            <div className="hamburger-line"></div>
+            <div className="hamburger-line"></div>
+            <div className="hamburger-line"></div>
+          </div>
+
+          {/* 모바일 메뉴 오버레이 */}
+          {showMobileMenu && (
+            <div className="mobile-nav-overlay">
+              <div className="mobile-nav-close" onClick={() => setShowMobileMenu(false)}>✕</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {[
+                  { key: 'dashboard', icon: '📊', label: '대시보드' },
+                  { key: 'tasks', icon: '✅', label: '과제' },
+                  { key: 'teaching', icon: '👨‍🏫', label: '수업관리' },
+                  { key: 'behavior', icon: '🎯', label: 'PBS 행동지원' },
+                  { key: 'behaviorAnalytics', icon: '📈', label: '행동 그래프' },
+                  { key: 'reports', icon: '📄', label: '보고서' },
+                  { key: 'focus', icon: '⏱️', label: '집중' },
+                  { key: 'schedule', icon: '🚗', label: '일정' },
+                  { key: 'calendar', icon: '📅', label: '캘린더' },
+                  { key: 'analytics', icon: '📈', label: '통계' },
+                ].map(item => (
+                  <button
+                    key={item.key}
+                    style={{
+                      ...styles.navBtn,
+                      padding: 20,
+                      fontSize: 16,
+                      background: view === item.key ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : styles.navBtn.background,
+                      boxShadow: view === item.key ? '0 4px 12px rgba(99, 102, 241, 0.4)' : 'none',
+                    }}
+                    onClick={() => { setView(item.key); setShowMobileMenu(false); }}
+                  >
+                    {item.icon} {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 데스크톱 네비게이션 */}
+          <div style={styles.nav} className="desktop-nav">
             {[
               { key: 'dashboard', icon: '📊', label: '대시보드' },
               { key: 'tasks', icon: '✅', label: '과제' },
               { key: 'teaching', icon: '👨‍🏫', label: '수업관리' },
+              { key: 'behavior', icon: '🎯', label: 'PBS 행동지원' },
+              { key: 'behaviorAnalytics', icon: '📈', label: '행동 그래프' },
+              { key: 'reports', icon: '📄', label: '보고서' },
               { key: 'focus', icon: '⏱️', label: '집중' },
               { key: 'schedule', icon: '🚗', label: '일정' },
               { key: 'calendar', icon: '📅', label: '캘린더' },
-              { key: 'analytics', icon: '📈', label: '통계' },
             ].map(item => (
               <button
                 key={item.key}
@@ -1564,6 +2237,36 @@
                 {item.icon} {item.label}
               </button>
             ))}
+            <button
+              style={{
+                ...styles.navBtn,
+                background: showSearch ? 'rgba(59, 130, 246, 0.3)' : styles.navBtn.background,
+              }}
+              onClick={() => setShowSearch(!showSearch)}
+            >
+              🔍 검색 (Ctrl+K)
+            </button>
+          </div>
+
+          {/* 하단 네비게이션 (모바일) */}
+          <div className="bottom-nav">
+            <div className="bottom-nav-grid">
+              {[
+                { key: 'dashboard', icon: '📊', label: '홈' },
+                { key: 'tasks', icon: '✅', label: '과제' },
+                { key: 'behavior', icon: '🎯', label: '행동' },
+                { key: 'reports', icon: '📄', label: '보고서' },
+              ].map(item => (
+                <button
+                  key={item.key}
+                  className={`bottom-nav-btn ${view === item.key ? 'active' : ''}`}
+                  onClick={() => setView(item.key)}
+                >
+                  <span>{item.icon}</span>
+                  <div>{item.label}</div>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* 대시보드 */}
@@ -1995,6 +2698,478 @@
             </div>
           )}
 
+          {/* PBS 행동지원 (행동 트래킹) */}
+          {view === 'behavior' && (
+            <div style={styles.card} className="animate-in">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+                <h2 style={styles.h2}>🎯 PBS 행동지원 시스템</h2>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    style={styles.btn}
+                    onClick={() => setEditingBehavior({ behaviorType: 'TARGET', frequency: 1, intensity: 1, duration: 0 })}
+                  >
+                    ➕ 행동 기록 추가
+                  </button>
+                  <button
+                    style={{ ...styles.btn, background: 'linear-gradient(135deg, #10b981, #059669)' }}
+                    onClick={() => exportBehaviorLogCSV(state.behaviorLog)}
+                  >
+                    💾 CSV 내보내기
+                  </button>
+                </div>
+              </div>
+
+              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, marginBottom: 20, padding: 12, background: 'rgba(139, 92, 246, 0.1)', borderRadius: 8, border: '1px solid rgba(139, 92, 246, 0.3)' }}>
+                📊 <strong>ABC 형식 행동 기록:</strong> 선행사건(Antecedent) - 행동(Behavior) - 후속결과(Consequence)를 체계적으로 기록하여 Be-Able 플랫폼과 연동 가능
+              </p>
+
+              {state.behaviorLog.length === 0 && (
+                <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,0.5)' }}>
+                  등록된 행동 기록이 없습니다. 새 행동 기록을 추가해보세요!
+                </div>
+              )}
+
+              {state.behaviorLog.slice().reverse().map((log) => (
+                <div
+                  key={log.id}
+                  style={{
+                    padding: 20,
+                    borderRadius: 16,
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    marginBottom: 16,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                        <span style={{
+                          padding: '6px 12px',
+                          borderRadius: 8,
+                          background: BEHAVIOR_TYPES[log.behaviorType]?.color || '#6b7280',
+                          fontSize: 13,
+                          fontWeight: 700,
+                        }}>
+                          {BEHAVIOR_TYPES[log.behaviorType]?.icon} {BEHAVIOR_TYPES[log.behaviorType]?.label}
+                        </span>
+                        <span style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>
+                          {log.studentName}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>
+                        {new Date(log.timestamp).toLocaleString('ko-KR')}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        style={{ ...styles.btn2, padding: '8px 12px', background: 'rgba(59, 130, 246, 0.3)' }}
+                        onClick={() => setEditingBehavior(log)}
+                      >
+                        ✏️ 수정
+                      </button>
+                      <button
+                        style={{ ...styles.btn2, padding: '8px 12px', background: 'rgba(239, 68, 68, 0.3)' }}
+                        onClick={() => deleteBehaviorLog(log.id)}
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: 12,
+                    marginBottom: 12,
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginBottom: 4, fontWeight: 700 }}>
+                        선행사건 (A)
+                      </div>
+                      <div style={{ fontSize: 14, color: 'white' }}>
+                        {log.antecedent || '-'}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginBottom: 4, fontWeight: 700 }}>
+                        행동 (B)
+                      </div>
+                      <div style={{ fontSize: 14, color: 'white', fontWeight: 700 }}>
+                        {log.behavior || '-'}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginBottom: 4, fontWeight: 700 }}>
+                        후속결과 (C)
+                      </div>
+                      <div style={{ fontSize: 14, color: 'white' }}>
+                        {log.consequence || '-'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    gap: 12,
+                    padding: 12,
+                    background: 'rgba(0,0,0,0.2)',
+                    borderRadius: 8,
+                    marginBottom: 12,
+                  }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginBottom: 4 }}>빈도</div>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: '#3b82f6' }}>{log.frequency}회</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginBottom: 4 }}>강도</div>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: '#f59e0b' }}>
+                        {'⭐'.repeat(log.intensity || 1)}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginBottom: 4 }}>지속시간</div>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: '#10b981' }}>{log.duration}분</div>
+                    </div>
+                  </div>
+
+                  {log.interventionNote && (
+                    <div style={{
+                      padding: 12,
+                      background: 'rgba(139, 92, 246, 0.1)',
+                      borderRadius: 8,
+                      border: '1px solid rgba(139, 92, 246, 0.3)',
+                    }}>
+                      <div style={{ fontSize: 12, color: '#a78bfa', marginBottom: 6, fontWeight: 700 }}>
+                        💡 중재 노트
+                      </div>
+                      <div style={{ fontSize: 14, color: 'white', lineHeight: 1.6 }}>
+                        {log.interventionNote}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 행동 그래프 / 분석 */}
+          {view === 'behaviorAnalytics' && (
+            <div style={styles.card} className="animate-in">
+              <h2 style={styles.h2}>📈 행동 데이터 분석 및 시각화</h2>
+
+              <div style={{ marginBottom: 20, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <select
+                  value={behaviorFilter.dateRange}
+                  onChange={(e) => setBehaviorFilter({ ...behaviorFilter, dateRange: parseInt(e.target.value) })}
+                  style={{
+                    padding: '10px 16px',
+                    borderRadius: 8,
+                    background: 'rgba(255,255,255,0.1)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    color: 'white',
+                    fontSize: 13,
+                    fontWeight: 700,
+                  }}
+                >
+                  <option value={7}>최근 7일</option>
+                  <option value={30}>최근 30일</option>
+                  <option value={90}>최근 90일</option>
+                </select>
+
+                <button
+                  style={{ ...styles.btn2, background: 'rgba(16, 185, 129, 0.3)' }}
+                  onClick={() => exportChartAsPNG('behaviorLineChart', '행동빈도차트.png')}
+                >
+                  📊 차트 PNG 저장
+                </button>
+              </div>
+
+              {state.behaviorLog.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 60, color: 'rgba(255,255,255,0.5)' }}>
+                  분석할 행동 데이터가 없습니다. 행동 기록을 추가해주세요.
+                </div>
+              ) : (
+                <div>
+                  {/* 통계 요약 */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                    gap: 16,
+                    marginBottom: 30,
+                  }}>
+                    {(() => {
+                      const now = Date.now();
+                      const rangeMs = behaviorFilter.dateRange * 24 * 60 * 60 * 1000;
+                      const filtered = state.behaviorLog.filter(b => b.timestamp >= (now - rangeMs));
+
+                      const byType = {};
+                      filtered.forEach(b => {
+                        const type = BEHAVIOR_TYPES[b.behaviorType]?.label || b.behaviorType;
+                        byType[type] = (byType[type] || 0) + 1;
+                      });
+
+                      const mostCommon = Object.entries(byType).sort((a, b) => b[1] - a[1])[0];
+
+                      return (
+                        <>
+                          <div style={{
+                            padding: 20,
+                            borderRadius: 12,
+                            background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(99, 102, 241, 0.3))',
+                            border: '1px solid rgba(59, 130, 246, 0.4)',
+                            textAlign: 'center',
+                          }}>
+                            <div style={{ fontSize: 32, fontWeight: 900, color: '#60a5fa' }}>{filtered.length}</div>
+                            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>총 기록 수</div>
+                          </div>
+                          <div style={{
+                            padding: 20,
+                            borderRadius: 12,
+                            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(5, 150, 105, 0.3))',
+                            border: '1px solid rgba(16, 185, 129, 0.4)',
+                            textAlign: 'center',
+                          }}>
+                            <div style={{ fontSize: 32, fontWeight: 900, color: '#10b981' }}>
+                              {filtered.length > 0 ? (filtered.length / behaviorFilter.dateRange).toFixed(1) : 0}
+                            </div>
+                            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>일평균 발생</div>
+                          </div>
+                          <div style={{
+                            padding: 20,
+                            borderRadius: 12,
+                            background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(124, 58, 237, 0.3))',
+                            border: '1px solid rgba(139, 92, 246, 0.4)',
+                            textAlign: 'center',
+                          }}>
+                            <div style={{ fontSize: 16, fontWeight: 900, color: '#a78bfa' }}>
+                              {mostCommon ? mostCommon[0] : '-'}
+                            </div>
+                            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>최다 발생</div>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  {/* 차트: 일별 행동 빈도 */}
+                  <div className="chart-container" style={{ marginBottom: 30 }}>
+                    <h3 style={{ fontSize: 16, fontWeight: 700, color: 'white', marginBottom: 16 }}>
+                      📊 일별 행동 빈도
+                    </h3>
+                    <canvas id="behaviorLineChart"></canvas>
+                  </div>
+
+                  {/* 차트: 행동 유형별 분포 */}
+                  <div className="chart-container">
+                    <h3 style={{ fontSize: 16, fontWeight: 700, color: 'white', marginBottom: 16 }}>
+                      📊 행동 유형별 분포
+                    </h3>
+                    <canvas id="behaviorBarChart"></canvas>
+                  </div>
+
+                  {/* Chart.js 차트 렌더링 */}
+                  {(() => {
+                    setTimeout(() => {
+                      const now = Date.now();
+                      const rangeMs = behaviorFilter.dateRange * 24 * 60 * 60 * 1000;
+                      const filtered = state.behaviorLog.filter(b => b.timestamp >= (now - rangeMs));
+
+                      // 일별 데이터 집계
+                      const dailyData = {};
+                      for (let i = 0; i < behaviorFilter.dateRange; i++) {
+                        const date = new Date(now - i * 24 * 60 * 60 * 1000);
+                        const dateStr = date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+                        dailyData[dateStr] = 0;
+                      }
+
+                      filtered.forEach(b => {
+                        const dateStr = new Date(b.timestamp).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+                        if (dailyData[dateStr] !== undefined) {
+                          dailyData[dateStr]++;
+                        }
+                      });
+
+                      const labels = Object.keys(dailyData).reverse();
+                      const data = Object.values(dailyData).reverse();
+
+                      // 라인 차트
+                      const lineCtx = document.getElementById('behaviorLineChart');
+                      if (lineCtx && window.Chart) {
+                        const existingLine = Chart.getChart('behaviorLineChart');
+                        if (existingLine) existingLine.destroy();
+
+                        new Chart(lineCtx, {
+                          type: 'line',
+                          data: {
+                            labels: labels,
+                            datasets: [{
+                              label: '행동 발생 횟수',
+                              data: data,
+                              borderColor: '#3b82f6',
+                              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                              tension: 0.4,
+                              fill: true,
+                            }]
+                          },
+                          options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: { labels: { color: 'white' } }
+                            },
+                            scales: {
+                              y: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                              x: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } }
+                            }
+                          }
+                        });
+                      }
+
+                      // 행동 유형별 데이터
+                      const typeData = {};
+                      filtered.forEach(b => {
+                        const type = BEHAVIOR_TYPES[b.behaviorType]?.label || b.behaviorType;
+                        typeData[type] = (typeData[type] || 0) + 1;
+                      });
+
+                      // 바 차트
+                      const barCtx = document.getElementById('behaviorBarChart');
+                      if (barCtx && window.Chart) {
+                        const existingBar = Chart.getChart('behaviorBarChart');
+                        if (existingBar) existingBar.destroy();
+
+                        new Chart(barCtx, {
+                          type: 'bar',
+                          data: {
+                            labels: Object.keys(typeData),
+                            datasets: [{
+                              label: '발생 횟수',
+                              data: Object.values(typeData),
+                              backgroundColor: Object.keys(typeData).map(type => {
+                                const behaviorType = Object.values(BEHAVIOR_TYPES).find(t => t.label === type);
+                                return behaviorType ? behaviorType.color : '#6b7280';
+                              }),
+                            }]
+                          },
+                          options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: { display: false }
+                            },
+                            scales: {
+                              y: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                              x: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } }
+                            }
+                          }
+                        });
+                      }
+                    }, 100);
+
+                    return null;
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 보고서 생성 */}
+          {view === 'reports' && (
+            <div style={styles.card} className="animate-in">
+              <h2 style={styles.h2}>📄 자동 보고서 생성</h2>
+              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, marginBottom: 30 }}>
+                주간/월간 보고서를 PDF 또는 CSV 형식으로 자동 생성합니다.
+              </p>
+
+              {/* 주간 수업 보고서 */}
+              <div style={{
+                padding: 24,
+                borderRadius: 16,
+                background: 'rgba(59, 130, 246, 0.1)',
+                border: '1px solid rgba(59, 130, 246, 0.3)',
+                marginBottom: 20,
+              }}>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: '#60a5fa', marginBottom: 12 }}>
+                  📚 주간 수업 보고서
+                </h3>
+                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 16, lineHeight: 1.6 }}>
+                  최근 7일간의 수업 내용, 주제, 목표를 요약한 보고서를 생성합니다.
+                </p>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    style={styles.btn}
+                    onClick={generateWeeklyLessonReport}
+                  >
+                    💾 CSV 다운로드
+                  </button>
+                  <button
+                    style={{ ...styles.btn, background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}
+                    onClick={() => generatePDFReport('weekly')}
+                  >
+                    📕 PDF 다운로드
+                  </button>
+                </div>
+              </div>
+
+              {/* 월간 행동 보고서 */}
+              <div style={{
+                padding: 24,
+                borderRadius: 16,
+                background: 'rgba(139, 92, 246, 0.1)',
+                border: '1px solid rgba(139, 92, 246, 0.3)',
+                marginBottom: 20,
+              }}>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: '#a78bfa', marginBottom: 12 }}>
+                  🎯 월간 행동 보고서
+                </h3>
+                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 16, lineHeight: 1.6 }}>
+                  최근 30일간의 행동 기록, 유형별 집계, 추세 분석을 포함한 보고서를 생성합니다.
+                </p>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    style={styles.btn}
+                    onClick={generateMonthlyBehaviorReport}
+                  >
+                    💾 CSV 다운로드
+                  </button>
+                  <button
+                    style={{ ...styles.btn, background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}
+                    onClick={() => generatePDFReport('monthly')}
+                  >
+                    📕 PDF 다운로드
+                  </button>
+                </div>
+              </div>
+
+              {/* 보고서 미리보기 */}
+              <div style={{
+                padding: 24,
+                borderRadius: 16,
+                background: 'rgba(16, 185, 129, 0.1)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+              }}>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: '#10b981', marginBottom: 12 }}>
+                  📊 데이터 현황
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 16 }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 32, fontWeight: 900, color: '#10b981' }}>{state.lessons.length}</div>
+                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>총 수업 수</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 32, fontWeight: 900, color: '#8b5cf6' }}>{state.behaviorLog.length}</div>
+                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>총 행동 기록</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 32, fontWeight: 900, color: '#3b82f6' }}>{Object.keys(state.studentEvals).length}</div>
+                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>총 평가 수</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* 수업 편집 모달 */}
           {editingLesson && (
             <div className="modal-overlay" onClick={() => setEditingLesson(null)}>
@@ -2096,6 +3271,192 @@
                   <button
                     style={{ ...styles.btn2, padding: '12px 20px' }}
                     onClick={() => setEditingLesson(null)}
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 행동 기록 편집 모달 */}
+          {editingBehavior && (
+            <div className="modal-overlay" onClick={() => setEditingBehavior(null)}>
+              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                <h2 style={{ fontSize: 22, fontWeight: 800, color: 'white', marginBottom: 20 }}>
+                  {editingBehavior.id ? '✏️ 행동 기록 수정' : '➕ 행동 기록 추가'}
+                </h2>
+
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
+                    학생 이름 *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="학생 이름 입력"
+                    value={editingBehavior.studentName || ''}
+                    onChange={(e) => setEditingBehavior({ ...editingBehavior, studentName: e.target.value })}
+                    style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14 }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
+                    행동 유형 *
+                  </label>
+                  <select
+                    value={editingBehavior.behaviorType || 'TARGET'}
+                    onChange={(e) => setEditingBehavior({ ...editingBehavior, behaviorType: e.target.value })}
+                    style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14 }}
+                  >
+                    {Object.entries(BEHAVIOR_TYPES).map(([key, type]) => (
+                      <option key={key} value={key}>{type.icon} {type.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
+                    선행사건 (Antecedent) *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="행동 전 상황 (예: 과제제시, 또래상호작용)"
+                    value={editingBehavior.antecedent || ''}
+                    onChange={(e) => setEditingBehavior({ ...editingBehavior, antecedent: e.target.value })}
+                    style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14 }}
+                    list="antecedents"
+                  />
+                  <datalist id="antecedents">
+                    {COMMON_ANTECEDENTS.map(a => <option key={a} value={a} />)}
+                  </datalist>
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
+                    행동 (Behavior) *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="관찰된 행동 (예: 소리지르기, 자리이탈)"
+                    value={editingBehavior.behavior || ''}
+                    onChange={(e) => setEditingBehavior({ ...editingBehavior, behavior: e.target.value })}
+                    style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14 }}
+                    list="behaviors"
+                  />
+                  <datalist id="behaviors">
+                    {COMMON_BEHAVIORS.map(b => <option key={b} value={b} />)}
+                  </datalist>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                    {COMMON_BEHAVIORS.slice(0, 5).map(b => (
+                      <button
+                        key={b}
+                        style={{ padding: '6px 12px', background: 'rgba(59, 130, 246, 0.2)', border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: 6, color: 'white', fontSize: 12, cursor: 'pointer' }}
+                        onClick={() => setEditingBehavior({ ...editingBehavior, behavior: b })}
+                      >
+                        {b}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
+                    후속결과 (Consequence) *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="행동 후 결과 (예: 관심제공, 토큰제공)"
+                    value={editingBehavior.consequence || ''}
+                    onChange={(e) => setEditingBehavior({ ...editingBehavior, consequence: e.target.value })}
+                    style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14 }}
+                    list="consequences"
+                  />
+                  <datalist id="consequences">
+                    {COMMON_CONSEQUENCES.map(c => <option key={c} value={c} />)}
+                  </datalist>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
+                  <div>
+                    <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
+                      빈도 (회)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={editingBehavior.frequency || 1}
+                      onChange={(e) => setEditingBehavior({ ...editingBehavior, frequency: parseInt(e.target.value) || 1 })}
+                      style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14 }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
+                      강도 (1-5)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="5"
+                      value={editingBehavior.intensity || 1}
+                      onChange={(e) => setEditingBehavior({ ...editingBehavior, intensity: parseInt(e.target.value) || 1 })}
+                      style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14 }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
+                      지속시간 (분)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editingBehavior.duration || 0}
+                      onChange={(e) => setEditingBehavior({ ...editingBehavior, duration: parseInt(e.target.value) || 0 })}
+                      style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14 }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
+                    중재 노트 (선택사항)
+                  </label>
+                  <textarea
+                    placeholder="사용한 중재 전략, 효과, 향후 계획 등을 기록하세요"
+                    value={editingBehavior.interventionNote || ''}
+                    onChange={(e) => setEditingBehavior({ ...editingBehavior, interventionNote: e.target.value })}
+                    rows={4}
+                    style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14, resize: 'vertical' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+                  <button
+                    style={{ ...styles.btn, flex: 1 }}
+                    onClick={() => {
+                      if (!editingBehavior.studentName || !editingBehavior.behavior || !editingBehavior.antecedent || !editingBehavior.consequence) {
+                        alert('학생 이름, 선행사건, 행동, 후속결과는 필수 항목입니다.');
+                        return;
+                      }
+                      saveBehaviorLog(editingBehavior);
+                    }}
+                  >
+                    💾 저장
+                  </button>
+                  {editingBehavior.id && (
+                    <button
+                      style={{ ...styles.btn, background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}
+                      onClick={() => {
+                        deleteBehaviorLog(editingBehavior.id);
+                        setEditingBehavior(null);
+                      }}
+                    >
+                      🗑️ 삭제
+                    </button>
+                  )}
+                  <button
+                    style={{ ...styles.btn2, padding: '12px 20px' }}
+                    onClick={() => setEditingBehavior(null)}
                   >
                     취소
                   </button>
