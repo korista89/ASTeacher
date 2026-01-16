@@ -24,6 +24,22 @@
       color: #e2e8f0;
       min-height: 100vh;
     }
+
+    .app-container {
+      width: min(100%, 1680px);
+      margin: 0 auto;
+      padding: clamp(14px, 2vw, 28px);
+      min-height: 100vh;
+    }
+
+    .app-title {
+      font-size: clamp(22px, 2.8vw, 36px);
+    }
+
+    .section-title {
+      font-size: clamp(18px, 2vw, 24px);
+      flex-wrap: wrap;
+    }
     
     .scrollable {
       -webkit-overflow-scrolling: touch;
@@ -436,12 +452,35 @@
     /* 차트 컨테이너 */
     .chart-container {
       position: relative;
-      height: 300px;
+      height: clamp(240px, 30vw, 360px);
       margin: 20px 0;
       padding: 20px;
       background: rgba(0,0,0,0.2);
       border-radius: 12px;
       border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .chart-container canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    .chart-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .chart-actions .form-select {
+      min-width: 140px;
+      flex: 1 1 160px;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
     }
 
     /* 진행률 자동 표시 */
@@ -474,6 +513,8 @@
       top: 20px;
       right: 20px;
       z-index: 1001;
+      min-height: 44px;
+      min-width: 44px;
     }
 
     .hamburger-line {
@@ -494,7 +535,7 @@
       z-index: 1000;
       display: flex;
       flex-direction: column;
-      padding: 80px 20px 20px;
+      padding: 80px 20px calc(20px + env(safe-area-inset-bottom));
       overflow-y: auto;
     }
 
@@ -506,6 +547,8 @@
       color: white;
       cursor: pointer;
       padding: 10px;
+      min-height: 44px;
+      min-width: 44px;
     }
 
     /* 검색바 스타일 */
@@ -572,7 +615,7 @@
       background: rgba(15, 23, 42, 0.95);
       backdrop-filter: blur(10px);
       border-top: 1px solid rgba(255, 255, 255, 0.1);
-      padding: 8px;
+      padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
       z-index: 100;
       box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.4);
     }
@@ -585,6 +628,8 @@
 
     .bottom-nav-btn {
       padding: 8px;
+      min-height: 52px;
+      min-width: 60px;
       background: transparent;
       border: none;
       border-radius: 8px;
@@ -597,6 +642,52 @@
       align-items: center;
       gap: 4px;
       transition: all 0.2s;
+    }
+
+    .form-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+
+    .form-control,
+    .form-select,
+    .form-textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: white;
+      font-size: 16px;
+      line-height: 1.4;
+    }
+
+    .form-textarea {
+      resize: vertical;
+      min-height: 120px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 4px;
     }
 
     .bottom-nav-btn.active {
@@ -633,8 +724,14 @@
         padding-bottom: 70px;
       }
 
+      .app-container {
+        padding: 16px 12px 80px;
+      }
+
       .hamburger-menu {
         display: flex;
+        top: 12px;
+        right: 12px;
       }
 
       .bottom-nav {
@@ -673,7 +770,7 @@
       }
 
       .chart-container {
-        height: 250px;
+        height: 240px;
         padding: 12px;
       }
 
@@ -703,6 +800,14 @@
       .search-input {
         font-size: 16px; /* iOS 줌 방지 */
       }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .calendar-grid {
+        gap: 2px;
+      }
     }
 
     /* 가로 모드 */
@@ -725,6 +830,10 @@
     .swipeable {
       touch-action: pan-y;
       user-select: none;
+    }
+
+    .calendar-swipe {
+      touch-action: pan-y;
     }
 
     /* 터치 피드백 */
@@ -1233,6 +1342,8 @@
     // 캘린더 컴포넌트
     function Calendar({ tasks, schedules, lessons }) {
       const [currentMonth, setCurrentMonth] = useState(new Date());
+      const touchStartXRef = useRef(null);
+      const touchStartYRef = useRef(null);
 
       const year = currentMonth.getFullYear();
       const month = currentMonth.getMonth();
@@ -1244,6 +1355,28 @@
 
       const prevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
       const nextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
+
+      const handleTouchStart = (event) => {
+        const touch = event.touches[0];
+        touchStartXRef.current = touch.clientX;
+        touchStartYRef.current = touch.clientY;
+      };
+
+      const handleTouchEnd = (event) => {
+        if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+        const touch = event.changedTouches[0];
+        const deltaX = touch.clientX - touchStartXRef.current;
+        const deltaY = touch.clientY - touchStartYRef.current;
+        if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
+          if (deltaX > 0) {
+            prevMonth();
+          } else {
+            nextMonth();
+          }
+        }
+        touchStartXRef.current = null;
+        touchStartYRef.current = null;
+      };
 
       const days = [];
       for (let i = 0; i < startDay; i++) {
@@ -1355,8 +1488,8 @@
       }
 
       return (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div className="swipeable calendar-swipe" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+          <div className="calendar-header" style={{ marginBottom: 16 }}>
             <button
               style={{
                 padding: '10px 18px',
@@ -1392,11 +1525,7 @@
             </button>
           </div>
 
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(7, 1fr)',
-            gap: 4,
-          }}>
+          <div className="calendar-grid">
             {['일', '월', '화', '수', '목', '금', '토'].map(d => (
               <div key={d} style={{ 
                 textAlign: 'center', 
@@ -1989,9 +2118,6 @@
 
       const styles = {
         container: {
-          maxWidth: 1400,
-          margin: '0 auto',
-          padding: 20,
           minHeight: '100vh',
         },
         card: {
@@ -2004,7 +2130,6 @@
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
         },
         h1: {
-          fontSize: 32,
           fontWeight: 900,
           background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
           WebkitBackgroundClip: 'text',
@@ -2089,8 +2214,23 @@
         return { total, completed, urgent, points: state.points, level, avgProgress };
       }, [state.tasks, state.points]);
 
+      const behaviorStudents = useMemo(() => {
+        return Array.from(new Set(state.behaviorLog.map(b => b.studentName).filter(Boolean))).sort();
+      }, [state.behaviorLog]);
+
+      const filteredBehaviorLog = useMemo(() => {
+        const now = Date.now();
+        const rangeMs = behaviorFilter.dateRange * 24 * 60 * 60 * 1000;
+        return state.behaviorLog.filter(b => {
+          if (b.timestamp < now - rangeMs) return false;
+          if (behaviorFilter.student !== 'ALL' && b.studentName !== behaviorFilter.student) return false;
+          if (behaviorFilter.behaviorType !== 'ALL' && b.behaviorType !== behaviorFilter.behaviorType) return false;
+          return true;
+        });
+      }, [state.behaviorLog, behaviorFilter]);
+
       return (
-        <div style={styles.container}>
+        <div style={styles.container} className="app-container">
           {/* 알림 배너 */}
           {showAlert && (
             <div className="alert-banner">
@@ -2105,7 +2245,7 @@
             </div>
           )}
 
-          <h1 style={styles.h1}>🎯 ADHD 특수교사 통합 관리 Pro v2.0</h1>
+          <h1 style={styles.h1} className="app-title">🎯 ADHD 특수교사 통합 관리 Pro v2.0</h1>
           
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginBottom: 20 }}>
             <div className="token-badge">
@@ -2272,7 +2412,7 @@
           {/* 대시보드 */}
           {view === 'dashboard' && (
             <div style={styles.card} className="animate-in">
-              <h2 style={styles.h2}>📈 시스템 개요</h2>
+              <h2 style={styles.h2} className="section-title">📈 시스템 개요</h2>
               <p style={{ color: 'rgba(255,255,255,0.8)', marginBottom: 24, lineHeight: 1.8 }}>
                 <strong>✨ v2.0 업그레이드 완료!</strong><br/>
                 ✓ 자동 진행률 계산 (세부단계 기반)<br/>
@@ -2283,7 +2423,7 @@
                 ✓ 접기/펼치기 기능
               </p>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+              <div className="stat-grid">
                 {[
                   { label: '전체 과제', value: stats.total, icon: '📋', color: '#6366f1', onClick: () => setView('tasks') },
                   { label: '완료', value: stats.completed, icon: '✅', color: '#10b981', onClick: () => setView('tasks') },
@@ -2339,7 +2479,7 @@
           {view === 'tasks' && (
             <div style={styles.card} className="animate-in">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <h2 style={styles.h2}>✅ 과제 관리</h2>
+                <h2 style={styles.h2} className="section-title">✅ 과제 관리</h2>
                 <button style={styles.btn} onClick={addTask}>
                   ➕ 새 과제 추가
                 </button>
@@ -2519,7 +2659,7 @@
           {/* 수업 관리 시스템 */}
           {view === 'teaching' && (
             <div style={styles.card} className="animate-in">
-              <h2 style={styles.h2}>👨‍🏫 수업 관리 시스템</h2>
+              <h2 style={styles.h2} className="section-title">👨‍🏫 수업 관리 시스템</h2>
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, marginBottom: 20 }}>
                 시간표 기반 수업 준비, 평가, 학생별 피드백 관리
               </p>
@@ -2667,7 +2807,7 @@
           {/* 일정 알람 */}
           {view === 'schedule' && (
             <div style={styles.card} className="animate-in">
-              <h2 style={styles.h2}>🚗 지각 방지 출발 알람</h2>
+              <h2 style={styles.h2} className="section-title">🚗 지각 방지 출발 알람</h2>
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, marginBottom: 16, padding: 12, background: 'rgba(239, 68, 68, 0.1)', borderRadius: 8, border: '1px solid rgba(239, 68, 68, 0.3)' }}>
                 ⏰ <strong>출발 시간에 자동으로 알림이 울립니다!</strong> (소리 + 진동 + 화면 알림)
               </p>
@@ -2693,7 +2833,7 @@
           {/* 캘린더 */}
           {view === 'calendar' && (
             <div style={styles.card} className="animate-in">
-              <h2 style={styles.h2}>📅 월별 캘린더</h2>
+              <h2 style={styles.h2} className="section-title">📅 월별 캘린더</h2>
               <Calendar tasks={state.tasks} schedules={state.schedules} lessons={state.lessons} />
             </div>
           )}
@@ -2702,7 +2842,7 @@
           {view === 'behavior' && (
             <div style={styles.card} className="animate-in">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
-                <h2 style={styles.h2}>🎯 PBS 행동지원 시스템</h2>
+                <h2 style={styles.h2} className="section-title">🎯 PBS 행동지원 시스템</h2>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                   <button
                     style={styles.btn}
@@ -2856,25 +2996,37 @@
           {/* 행동 그래프 / 분석 */}
           {view === 'behaviorAnalytics' && (
             <div style={styles.card} className="animate-in">
-              <h2 style={styles.h2}>📈 행동 데이터 분석 및 시각화</h2>
+              <h2 style={styles.h2} className="section-title">📈 행동 데이터 분석 및 시각화</h2>
 
-              <div style={{ marginBottom: 20, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <div className="chart-actions" style={{ marginBottom: 20 }}>
                 <select
                   value={behaviorFilter.dateRange}
                   onChange={(e) => setBehaviorFilter({ ...behaviorFilter, dateRange: parseInt(e.target.value) })}
-                  style={{
-                    padding: '10px 16px',
-                    borderRadius: 8,
-                    background: 'rgba(255,255,255,0.1)',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    color: 'white',
-                    fontSize: 13,
-                    fontWeight: 700,
-                  }}
+                  className="form-select"
                 >
                   <option value={7}>최근 7일</option>
                   <option value={30}>최근 30일</option>
                   <option value={90}>최근 90일</option>
+                </select>
+                <select
+                  value={behaviorFilter.student}
+                  onChange={(e) => setBehaviorFilter({ ...behaviorFilter, student: e.target.value })}
+                  className="form-select"
+                >
+                  <option value="ALL">전체 학생</option>
+                  {behaviorStudents.map(student => (
+                    <option key={student} value={student}>{student}</option>
+                  ))}
+                </select>
+                <select
+                  value={behaviorFilter.behaviorType}
+                  onChange={(e) => setBehaviorFilter({ ...behaviorFilter, behaviorType: e.target.value })}
+                  className="form-select"
+                >
+                  <option value="ALL">전체 행동유형</option>
+                  {Object.entries(BEHAVIOR_TYPES).map(([key, type]) => (
+                    <option key={key} value={key}>{type.icon} {type.label}</option>
+                  ))}
                 </select>
 
                 <button
@@ -2889,6 +3041,10 @@
                 <div style={{ textAlign: 'center', padding: 60, color: 'rgba(255,255,255,0.5)' }}>
                   분석할 행동 데이터가 없습니다. 행동 기록을 추가해주세요.
                 </div>
+              ) : filteredBehaviorLog.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 60, color: 'rgba(255,255,255,0.5)' }}>
+                  선택한 조건에 해당하는 행동 데이터가 없습니다.
+                </div>
               ) : (
                 <div>
                   {/* 통계 요약 */}
@@ -2899,12 +3055,8 @@
                     marginBottom: 30,
                   }}>
                     {(() => {
-                      const now = Date.now();
-                      const rangeMs = behaviorFilter.dateRange * 24 * 60 * 60 * 1000;
-                      const filtered = state.behaviorLog.filter(b => b.timestamp >= (now - rangeMs));
-
                       const byType = {};
-                      filtered.forEach(b => {
+                      filteredBehaviorLog.forEach(b => {
                         const type = BEHAVIOR_TYPES[b.behaviorType]?.label || b.behaviorType;
                         byType[type] = (byType[type] || 0) + 1;
                       });
@@ -2920,7 +3072,7 @@
                             border: '1px solid rgba(59, 130, 246, 0.4)',
                             textAlign: 'center',
                           }}>
-                            <div style={{ fontSize: 32, fontWeight: 900, color: '#60a5fa' }}>{filtered.length}</div>
+                            <div style={{ fontSize: 32, fontWeight: 900, color: '#60a5fa' }}>{filteredBehaviorLog.length}</div>
                             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>총 기록 수</div>
                           </div>
                           <div style={{
@@ -2931,7 +3083,7 @@
                             textAlign: 'center',
                           }}>
                             <div style={{ fontSize: 32, fontWeight: 900, color: '#10b981' }}>
-                              {filtered.length > 0 ? (filtered.length / behaviorFilter.dateRange).toFixed(1) : 0}
+                              {filteredBehaviorLog.length > 0 ? (filteredBehaviorLog.length / behaviorFilter.dateRange).toFixed(1) : 0}
                             </div>
                             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>일평균 발생</div>
                           </div>
@@ -2972,8 +3124,7 @@
                   {(() => {
                     setTimeout(() => {
                       const now = Date.now();
-                      const rangeMs = behaviorFilter.dateRange * 24 * 60 * 60 * 1000;
-                      const filtered = state.behaviorLog.filter(b => b.timestamp >= (now - rangeMs));
+                      const filtered = filteredBehaviorLog;
 
                       // 일별 데이터 집계
                       const dailyData = {};
@@ -3015,6 +3166,14 @@
                           options: {
                             responsive: true,
                             maintainAspectRatio: false,
+                            interaction: { mode: 'nearest', intersect: false },
+                            elements: {
+                              point: {
+                                radius: 4,
+                                hoverRadius: 6,
+                                hitRadius: 12,
+                              }
+                            },
                             plugins: {
                               legend: { labels: { color: 'white' } }
                             },
@@ -3055,6 +3214,7 @@
                           options: {
                             responsive: true,
                             maintainAspectRatio: false,
+                            interaction: { mode: 'nearest', intersect: false },
                             plugins: {
                               legend: { display: false }
                             },
@@ -3077,7 +3237,7 @@
           {/* 보고서 생성 */}
           {view === 'reports' && (
             <div style={styles.card} className="animate-in">
-              <h2 style={styles.h2}>📄 자동 보고서 생성</h2>
+              <h2 style={styles.h2} className="section-title">📄 자동 보고서 생성</h2>
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, marginBottom: 30 }}>
                 주간/월간 보고서를 PDF 또는 CSV 형식으로 자동 생성합니다.
               </p>
@@ -3287,7 +3447,7 @@
                   {editingBehavior.id ? '✏️ 행동 기록 수정' : '➕ 행동 기록 추가'}
                 </h2>
 
-                <div style={{ marginBottom: 16 }}>
+                <div className="form-field">
                   <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
                     학생 이름 *
                   </label>
@@ -3296,18 +3456,20 @@
                     placeholder="학생 이름 입력"
                     value={editingBehavior.studentName || ''}
                     onChange={(e) => setEditingBehavior({ ...editingBehavior, studentName: e.target.value })}
-                    style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14 }}
+                    className="form-control"
+                    autoComplete="name"
+                    inputMode="text"
                   />
                 </div>
 
-                <div style={{ marginBottom: 16 }}>
+                <div className="form-field">
                   <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
                     행동 유형 *
                   </label>
                   <select
                     value={editingBehavior.behaviorType || 'TARGET'}
                     onChange={(e) => setEditingBehavior({ ...editingBehavior, behaviorType: e.target.value })}
-                    style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14 }}
+                    className="form-select"
                   >
                     {Object.entries(BEHAVIOR_TYPES).map(([key, type]) => (
                       <option key={key} value={key}>{type.icon} {type.label}</option>
@@ -3315,7 +3477,7 @@
                   </select>
                 </div>
 
-                <div style={{ marginBottom: 16 }}>
+                <div className="form-field">
                   <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
                     선행사건 (Antecedent) *
                   </label>
@@ -3324,7 +3486,8 @@
                     placeholder="행동 전 상황 (예: 과제제시, 또래상호작용)"
                     value={editingBehavior.antecedent || ''}
                     onChange={(e) => setEditingBehavior({ ...editingBehavior, antecedent: e.target.value })}
-                    style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14 }}
+                    className="form-control"
+                    inputMode="text"
                     list="antecedents"
                   />
                   <datalist id="antecedents">
@@ -3332,7 +3495,7 @@
                   </datalist>
                 </div>
 
-                <div style={{ marginBottom: 16 }}>
+                <div className="form-field">
                   <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
                     행동 (Behavior) *
                   </label>
@@ -3341,7 +3504,8 @@
                     placeholder="관찰된 행동 (예: 소리지르기, 자리이탈)"
                     value={editingBehavior.behavior || ''}
                     onChange={(e) => setEditingBehavior({ ...editingBehavior, behavior: e.target.value })}
-                    style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14 }}
+                    className="form-control"
+                    inputMode="text"
                     list="behaviors"
                   />
                   <datalist id="behaviors">
@@ -3360,7 +3524,7 @@
                   </div>
                 </div>
 
-                <div style={{ marginBottom: 16 }}>
+                <div className="form-field">
                   <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
                     후속결과 (Consequence) *
                   </label>
@@ -3369,7 +3533,8 @@
                     placeholder="행동 후 결과 (예: 관심제공, 토큰제공)"
                     value={editingBehavior.consequence || ''}
                     onChange={(e) => setEditingBehavior({ ...editingBehavior, consequence: e.target.value })}
-                    style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14 }}
+                    className="form-control"
+                    inputMode="text"
                     list="consequences"
                   />
                   <datalist id="consequences">
@@ -3377,7 +3542,7 @@
                   </datalist>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
+                <div className="form-grid">
                   <div>
                     <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
                       빈도 (회)
@@ -3387,7 +3552,9 @@
                       min="1"
                       value={editingBehavior.frequency || 1}
                       onChange={(e) => setEditingBehavior({ ...editingBehavior, frequency: parseInt(e.target.value) || 1 })}
-                      style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14 }}
+                      className="form-control"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                     />
                   </div>
                   <div>
@@ -3400,7 +3567,9 @@
                       max="5"
                       value={editingBehavior.intensity || 1}
                       onChange={(e) => setEditingBehavior({ ...editingBehavior, intensity: parseInt(e.target.value) || 1 })}
-                      style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14 }}
+                      className="form-control"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                     />
                   </div>
                   <div>
@@ -3412,12 +3581,14 @@
                       min="0"
                       value={editingBehavior.duration || 0}
                       onChange={(e) => setEditingBehavior({ ...editingBehavior, duration: parseInt(e.target.value) || 0 })}
-                      style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14 }}
+                      className="form-control"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                     />
                   </div>
                 </div>
 
-                <div style={{ marginBottom: 16 }}>
+                <div className="form-field">
                   <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
                     중재 노트 (선택사항)
                   </label>
@@ -3426,7 +3597,7 @@
                     value={editingBehavior.interventionNote || ''}
                     onChange={(e) => setEditingBehavior({ ...editingBehavior, interventionNote: e.target.value })}
                     rows={4}
-                    style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14, resize: 'vertical' }}
+                    className="form-textarea"
                   />
                 </div>
 
