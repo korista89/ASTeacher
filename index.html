@@ -472,6 +472,11 @@
       margin-top: 12px;
     }
 
+    .chart-actions .form-select {
+      min-width: 140px;
+      flex: 1 1 160px;
+    }
+
     .stat-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -2209,6 +2214,21 @@
         return { total, completed, urgent, points: state.points, level, avgProgress };
       }, [state.tasks, state.points]);
 
+      const behaviorStudents = useMemo(() => {
+        return Array.from(new Set(state.behaviorLog.map(b => b.studentName).filter(Boolean))).sort();
+      }, [state.behaviorLog]);
+
+      const filteredBehaviorLog = useMemo(() => {
+        const now = Date.now();
+        const rangeMs = behaviorFilter.dateRange * 24 * 60 * 60 * 1000;
+        return state.behaviorLog.filter(b => {
+          if (b.timestamp < now - rangeMs) return false;
+          if (behaviorFilter.student !== 'ALL' && b.studentName !== behaviorFilter.student) return false;
+          if (behaviorFilter.behaviorType !== 'ALL' && b.behaviorType !== behaviorFilter.behaviorType) return false;
+          return true;
+        });
+      }, [state.behaviorLog, behaviorFilter]);
+
       return (
         <div style={styles.container} className="app-container">
           {/* 알림 배너 */}
@@ -2988,6 +3008,26 @@
                   <option value={30}>최근 30일</option>
                   <option value={90}>최근 90일</option>
                 </select>
+                <select
+                  value={behaviorFilter.student}
+                  onChange={(e) => setBehaviorFilter({ ...behaviorFilter, student: e.target.value })}
+                  className="form-select"
+                >
+                  <option value="ALL">전체 학생</option>
+                  {behaviorStudents.map(student => (
+                    <option key={student} value={student}>{student}</option>
+                  ))}
+                </select>
+                <select
+                  value={behaviorFilter.behaviorType}
+                  onChange={(e) => setBehaviorFilter({ ...behaviorFilter, behaviorType: e.target.value })}
+                  className="form-select"
+                >
+                  <option value="ALL">전체 행동유형</option>
+                  {Object.entries(BEHAVIOR_TYPES).map(([key, type]) => (
+                    <option key={key} value={key}>{type.icon} {type.label}</option>
+                  ))}
+                </select>
 
                 <button
                   style={{ ...styles.btn2, background: 'rgba(16, 185, 129, 0.3)' }}
@@ -3001,6 +3041,10 @@
                 <div style={{ textAlign: 'center', padding: 60, color: 'rgba(255,255,255,0.5)' }}>
                   분석할 행동 데이터가 없습니다. 행동 기록을 추가해주세요.
                 </div>
+              ) : filteredBehaviorLog.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 60, color: 'rgba(255,255,255,0.5)' }}>
+                  선택한 조건에 해당하는 행동 데이터가 없습니다.
+                </div>
               ) : (
                 <div>
                   {/* 통계 요약 */}
@@ -3011,12 +3055,8 @@
                     marginBottom: 30,
                   }}>
                     {(() => {
-                      const now = Date.now();
-                      const rangeMs = behaviorFilter.dateRange * 24 * 60 * 60 * 1000;
-                      const filtered = state.behaviorLog.filter(b => b.timestamp >= (now - rangeMs));
-
                       const byType = {};
-                      filtered.forEach(b => {
+                      filteredBehaviorLog.forEach(b => {
                         const type = BEHAVIOR_TYPES[b.behaviorType]?.label || b.behaviorType;
                         byType[type] = (byType[type] || 0) + 1;
                       });
@@ -3032,7 +3072,7 @@
                             border: '1px solid rgba(59, 130, 246, 0.4)',
                             textAlign: 'center',
                           }}>
-                            <div style={{ fontSize: 32, fontWeight: 900, color: '#60a5fa' }}>{filtered.length}</div>
+                            <div style={{ fontSize: 32, fontWeight: 900, color: '#60a5fa' }}>{filteredBehaviorLog.length}</div>
                             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>총 기록 수</div>
                           </div>
                           <div style={{
@@ -3043,7 +3083,7 @@
                             textAlign: 'center',
                           }}>
                             <div style={{ fontSize: 32, fontWeight: 900, color: '#10b981' }}>
-                              {filtered.length > 0 ? (filtered.length / behaviorFilter.dateRange).toFixed(1) : 0}
+                              {filteredBehaviorLog.length > 0 ? (filteredBehaviorLog.length / behaviorFilter.dateRange).toFixed(1) : 0}
                             </div>
                             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>일평균 발생</div>
                           </div>
@@ -3084,8 +3124,7 @@
                   {(() => {
                     setTimeout(() => {
                       const now = Date.now();
-                      const rangeMs = behaviorFilter.dateRange * 24 * 60 * 60 * 1000;
-                      const filtered = state.behaviorLog.filter(b => b.timestamp >= (now - rangeMs));
+                      const filtered = filteredBehaviorLog;
 
                       // 일별 데이터 집계
                       const dailyData = {};
