@@ -795,15 +795,13 @@
 
       const isPast = remaining < 0;
       const isUrgent = remaining > 0 && remaining < 15 * 60 * 1000;
-      // 알람 윈도우: 출발 시간 10분 전부터 출발 후 30분까지 (브라우저 throttling 대응)
-      const isDepartTime = remaining <= 10 * 60 * 1000 && remaining > -30 * 60 * 1000;
+      const isDepartTime = remaining <= 0 && remaining > -2000; // 알람 윈도우: 출발 시간 전후 2초
 
       useEffect(() => {
-        // 출발 시간이 되었을 때만 알람 (이미 알람을 보낸 경우 상위 컴포넌트에서 필터링)
-        if (isDepartTime && remaining <= 0 && onAlert) {
+        if (isDepartTime && onAlert) {
           onAlert(schedule.id);
         }
-      }, [isDepartTime, remaining, schedule.id, onAlert]);
+      }, [isDepartTime, schedule.id, onAlert]);
 
       const hrs = Math.floor(Math.abs(remaining) / (1000 * 60 * 60));
       const mins = Math.floor((Math.abs(remaining) % (1000 * 60 * 60)) / (1000 * 60));
