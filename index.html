@@ -2636,21 +2636,6 @@
         }));
       };
 
-      const behaviorStudents = useMemo(() => {
-        return Array.from(new Set(state.behaviorLog.map(b => b.studentName).filter(Boolean))).sort();
-      }, [state.behaviorLog]);
-
-      const filteredBehaviorLog = useMemo(() => {
-        const now = Date.now();
-        const rangeMs = behaviorFilter.dateRange * 24 * 60 * 60 * 1000;
-        return state.behaviorLog.filter(b => {
-          if (b.timestamp < now - rangeMs) return false;
-          if (behaviorFilter.student !== 'ALL' && b.studentName !== behaviorFilter.student) return false;
-          if (behaviorFilter.behaviorType !== 'ALL' && b.behaviorType !== behaviorFilter.behaviorType) return false;
-          return true;
-        });
-      }, [state.behaviorLog, behaviorFilter]);
-
       return (
         <div style={styles.container} className="app-container">
           {/* 알림 배너 */}
@@ -3637,7 +3622,8 @@
                         byType[type] = (byType[type] || 0) + 1;
                       });
 
-                      const mostCommon = Object.entries(byType).sort((a, b) => b[1] - a[1])[0];
+                      const sorted = Object.entries(byType).sort((a, b) => b[1] - a[1]);
+                      const mostCommon = sorted.length > 0 ? sorted[0] : null;
 
                       return (
                         <>
