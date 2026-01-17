@@ -431,11 +431,100 @@
     }
     .eval-score-4.selected { background: rgba(34, 197, 94, 0.5); }
     
-    .eval-score-5 { 
-      background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(5, 150, 105, 0.3)); 
+    .eval-score-5 {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(5, 150, 105, 0.3));
       border-color: rgba(16, 185, 129, 0.5);
     }
     .eval-score-5.selected { background: rgba(16, 185, 129, 0.5); }
+
+    /* PBS 행동 기록 그리드 */
+    .behavior-record-grid {
+      display: grid;
+      grid-template-columns: 100px repeat(6, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .behavior-cell {
+      padding: 10px 6px;
+      background: rgba(0,0,0,0.2);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 12px;
+      font-weight: 600;
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .behavior-cell:hover {
+      transform: scale(1.05);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+
+    .behavior-cell.selected {
+      border-width: 2px;
+      font-weight: 900;
+      font-size: 16px;
+    }
+
+    .behavior-freq-0 {
+      background: linear-gradient(135deg, rgba(107, 114, 128, 0.2), rgba(75, 85, 99, 0.2));
+      border-color: rgba(107, 114, 128, 0.4);
+    }
+    .behavior-freq-0.selected {
+      background: rgba(107, 114, 128, 0.4);
+      border-color: rgba(107, 114, 128, 0.8);
+    }
+
+    .behavior-freq-1 {
+      background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.2));
+      border-color: rgba(251, 191, 36, 0.4);
+    }
+    .behavior-freq-1.selected {
+      background: rgba(251, 191, 36, 0.4);
+      border-color: rgba(251, 191, 36, 0.8);
+    }
+
+    .behavior-freq-2 {
+      background: linear-gradient(135deg, rgba(251, 146, 60, 0.2), rgba(249, 115, 22, 0.2));
+      border-color: rgba(251, 146, 60, 0.4);
+    }
+    .behavior-freq-2.selected {
+      background: rgba(251, 146, 60, 0.4);
+      border-color: rgba(251, 146, 60, 0.8);
+    }
+
+    .behavior-freq-3 {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.2));
+      border-color: rgba(239, 68, 68, 0.4);
+    }
+    .behavior-freq-3.selected {
+      background: rgba(239, 68, 68, 0.4);
+      border-color: rgba(239, 68, 68, 0.8);
+    }
+
+    .behavior-freq-4 {
+      background: linear-gradient(135deg, rgba(220, 38, 38, 0.2), rgba(185, 28, 28, 0.2));
+      border-color: rgba(220, 38, 38, 0.4);
+    }
+    .behavior-freq-4.selected {
+      background: rgba(220, 38, 38, 0.4);
+      border-color: rgba(220, 38, 38, 0.8);
+    }
+
+    .behavior-freq-5 {
+      background: linear-gradient(135deg, rgba(153, 27, 27, 0.2), rgba(127, 29, 29, 0.2));
+      border-color: rgba(153, 27, 27, 0.4);
+    }
+    .behavior-freq-5.selected {
+      background: rgba(153, 27, 27, 0.4);
+      border-color: rgba(153, 27, 27, 0.8);
+    }
 
     /* 파일 업로드 버튼 스타일 */
     .file-input-label {
@@ -831,6 +920,16 @@
         font-size: 12px;
       }
 
+      .behavior-record-grid {
+        grid-template-columns: 90px repeat(6, 1fr);
+        gap: 6px;
+      }
+
+      .behavior-cell {
+        font-size: 11px;
+        padding: 8px 4px;
+      }
+
       .modal-content {
         max-width: 700px;
         padding: 20px;
@@ -867,6 +966,17 @@
         grid-template-columns: 70px repeat(6, 1fr);
         gap: 3px;
         font-size: 10px;
+      }
+
+      .behavior-record-grid {
+        grid-template-columns: 65px repeat(6, 1fr);
+        gap: 3px;
+      }
+
+      .behavior-cell {
+        font-size: 9px;
+        padding: 6px 2px;
+        min-height: 35px;
       }
 
       .timetable-cell {
@@ -2500,7 +2610,7 @@
             }
           }
         });
-      }, [view, state.behaviorLog, behaviorFilter]);
+      }, [view, state.behaviorLog, state.studentEvals, behaviorFilter]);
 
       // 검색 기록 저장
       const saveSearchHistory = (query) => {
@@ -2996,6 +3106,59 @@
             behaviorLog: p.behaviorLog.filter(b => b.id !== logId)
           }));
         }
+      };
+
+      // 빠른 행동 기록 (그리드에서 사용)
+      const saveBehaviorRecordQuick = (date, studentName, behaviorType, frequency) => {
+        // 해당 날짜/학생/타입의 기존 기록이 있는지 확인
+        const existingLog = state.behaviorLog.find(log => {
+          const logDate = new Date(log.timestamp);
+          const targetDate = new Date(date);
+          return isSameDay(logDate, targetDate) &&
+                 log.studentName === studentName &&
+                 log.behaviorType === behaviorType;
+        });
+
+        if (existingLog) {
+          // 기존 기록 업데이트
+          setState(p => ({
+            ...p,
+            behaviorLog: p.behaviorLog.map(b =>
+              b.id === existingLog.id
+                ? { ...b, frequency: frequency }
+                : b
+            )
+          }));
+        } else {
+          // 새 기록 추가
+          const behaviorTypeInfo = BEHAVIOR_TYPES[behaviorType];
+          setState(p => ({
+            ...p,
+            behaviorLog: [...p.behaviorLog, {
+              id: uuid(),
+              timestamp: date,
+              studentName: studentName,
+              behaviorType: behaviorType,
+              behavior: `${behaviorTypeInfo?.label || '행동'} 기록`,
+              antecedent: '그리드 입력',
+              consequence: '-',
+              frequency: frequency,
+              interventionNote: ''
+            }]
+          }));
+        }
+      };
+
+      // 특정 날짜/학생/타입의 빈도 가져오기
+      const getBehaviorFrequency = (date, studentName, behaviorType) => {
+        const log = state.behaviorLog.find(log => {
+          const logDate = new Date(log.timestamp);
+          const targetDate = new Date(date);
+          return isSameDay(logDate, targetDate) &&
+                 log.studentName === studentName &&
+                 log.behaviorType === behaviorType;
+        });
+        return log ? log.frequency : null;
       };
 
       // 주간 수업 보고서 생성
@@ -4997,6 +5160,133 @@
                     </div>
                   );
                 })}
+              </div>
+
+              {/* 빠른 행동 기록 (그리드) */}
+              <div style={{ marginTop: 32, padding: 20, background: 'rgba(139, 92, 246, 0.15)', borderRadius: 16, border: '1px solid rgba(139, 92, 246, 0.3)' }}>
+                <h3 style={{ fontSize: 18, fontWeight: 800, color: 'white', marginBottom: 8 }}>
+                  ⚡ 빠른 행동 기록 (그리드 방식)
+                </h3>
+                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, marginBottom: 20 }}>
+                  학생별로 빈도를 직접 클릭하여 행동을 기록합니다. 현재 선택된 주의 오늘 날짜 기준으로 기록됩니다.
+                </p>
+
+                {/* 표적행동 그리드 */}
+                <div style={{ marginBottom: 24 }}>
+                  <h4 style={{ fontSize: 15, fontWeight: 700, color: BEHAVIOR_TYPES.TARGET.color, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {BEHAVIOR_TYPES.TARGET.icon} {BEHAVIOR_TYPES.TARGET.label}
+                  </h4>
+                  <div className="behavior-record-grid">
+                    <div className="behavior-cell" style={{ fontWeight: 900, background: 'rgba(239, 68, 68, 0.3)', color: '#fca5a5', cursor: 'default' }}>학생</div>
+                    {[0, 1, 2, 3, 4, 5].map(freq => (
+                      <div key={freq} className="behavior-cell" style={{ fontWeight: 900, background: 'rgba(239, 68, 68, 0.3)', color: '#fca5a5', cursor: 'default' }}>
+                        <div>{freq}{freq === 5 ? '+' : ''}회</div>
+                      </div>
+                    ))}
+                    {[1, 2, 3, 4, 5, 6, 7].map(studentNum => {
+                      const studentId = `학생${studentNum}`;
+                      const todayDate = new Date();
+                      return (
+                        <React.Fragment key={studentNum}>
+                          <div className="behavior-cell" style={{ fontWeight: 700, background: 'rgba(239, 68, 68, 0.1)', color: 'white', cursor: 'default' }}>
+                            {studentId}
+                          </div>
+                          {[0, 1, 2, 3, 4, 5].map(freq => {
+                            const currentFreq = getBehaviorFrequency(todayDate, studentId, 'TARGET');
+                            const isSelected = currentFreq === freq;
+                            return (
+                              <div
+                                key={freq}
+                                className={`behavior-cell behavior-freq-${freq} ${isSelected ? 'selected' : ''}`}
+                                onClick={() => saveBehaviorRecordQuick(todayDate, studentId, 'TARGET', freq)}
+                              >
+                                {isSelected ? '✓' : '-'}
+                              </div>
+                            );
+                          })}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 대체행동 그리드 */}
+                <div style={{ marginBottom: 24 }}>
+                  <h4 style={{ fontSize: 15, fontWeight: 700, color: BEHAVIOR_TYPES.REPLACEMENT.color, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {BEHAVIOR_TYPES.REPLACEMENT.icon} {BEHAVIOR_TYPES.REPLACEMENT.label}
+                  </h4>
+                  <div className="behavior-record-grid">
+                    <div className="behavior-cell" style={{ fontWeight: 900, background: 'rgba(16, 185, 129, 0.3)', color: '#6ee7b7', cursor: 'default' }}>학생</div>
+                    {[0, 1, 2, 3, 4, 5].map(freq => (
+                      <div key={freq} className="behavior-cell" style={{ fontWeight: 900, background: 'rgba(16, 185, 129, 0.3)', color: '#6ee7b7', cursor: 'default' }}>
+                        <div>{freq}{freq === 5 ? '+' : ''}회</div>
+                      </div>
+                    ))}
+                    {[1, 2, 3, 4, 5, 6, 7].map(studentNum => {
+                      const studentId = `학생${studentNum}`;
+                      const todayDate = new Date();
+                      return (
+                        <React.Fragment key={studentNum}>
+                          <div className="behavior-cell" style={{ fontWeight: 700, background: 'rgba(16, 185, 129, 0.1)', color: 'white', cursor: 'default' }}>
+                            {studentId}
+                          </div>
+                          {[0, 1, 2, 3, 4, 5].map(freq => {
+                            const currentFreq = getBehaviorFrequency(todayDate, studentId, 'REPLACEMENT');
+                            const isSelected = currentFreq === freq;
+                            return (
+                              <div
+                                key={freq}
+                                className={`behavior-cell behavior-freq-${freq} ${isSelected ? 'selected' : ''}`}
+                                onClick={() => saveBehaviorRecordQuick(todayDate, studentId, 'REPLACEMENT', freq)}
+                              >
+                                {isSelected ? '✓' : '-'}
+                              </div>
+                            );
+                          })}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 긍정행동 그리드 */}
+                <div>
+                  <h4 style={{ fontSize: 15, fontWeight: 700, color: BEHAVIOR_TYPES.POSITIVE.color, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {BEHAVIOR_TYPES.POSITIVE.icon} {BEHAVIOR_TYPES.POSITIVE.label}
+                  </h4>
+                  <div className="behavior-record-grid">
+                    <div className="behavior-cell" style={{ fontWeight: 900, background: 'rgba(59, 130, 246, 0.3)', color: '#93c5fd', cursor: 'default' }}>학생</div>
+                    {[0, 1, 2, 3, 4, 5].map(freq => (
+                      <div key={freq} className="behavior-cell" style={{ fontWeight: 900, background: 'rgba(59, 130, 246, 0.3)', color: '#93c5fd', cursor: 'default' }}>
+                        <div>{freq}{freq === 5 ? '+' : ''}회</div>
+                      </div>
+                    ))}
+                    {[1, 2, 3, 4, 5, 6, 7].map(studentNum => {
+                      const studentId = `학생${studentNum}`;
+                      const todayDate = new Date();
+                      return (
+                        <React.Fragment key={studentNum}>
+                          <div className="behavior-cell" style={{ fontWeight: 700, background: 'rgba(59, 130, 246, 0.1)', color: 'white', cursor: 'default' }}>
+                            {studentId}
+                          </div>
+                          {[0, 1, 2, 3, 4, 5].map(freq => {
+                            const currentFreq = getBehaviorFrequency(todayDate, studentId, 'POSITIVE');
+                            const isSelected = currentFreq === freq;
+                            return (
+                              <div
+                                key={freq}
+                                className={`behavior-cell behavior-freq-${freq} ${isSelected ? 'selected' : ''}`}
+                                onClick={() => saveBehaviorRecordQuick(todayDate, studentId, 'POSITIVE', freq)}
+                              >
+                                {isSelected ? '✓' : '-'}
+                              </div>
+                            );
+                          })}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
           )}
