@@ -3547,50 +3547,126 @@
           {/* 대시보드 */}
           {view === 'dashboard' && (
             <div style={styles.card} className="animate-in">
-              <h2 style={styles.h2} className="section-title">📈 시스템 개요</h2>
-              <p style={{ color: 'rgba(255,255,255,0.8)', marginBottom: 24, lineHeight: 1.8 }}>
-                <strong>✨ v2.0 업그레이드 완료!</strong><br/>
-                ✓ 자동 진행률 계산 (세부단계 기반)<br/>
-                ✓ 출발 시간 알람 시스템 (소리+진동)<br/>
-                ✓ 시간표 기반 수업 관리<br/>
-                ✓ 학생 평가 및 시각화<br/>
-                ✓ CSV 동기화 (구글시트 연동)<br/>
-                ✓ 접기/펼치기 기능
+              <h2 style={styles.h2} className="section-title">📊 대시보드</h2>
+              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, marginBottom: 24 }}>
+                전체 시스템 현황을 한눈에 확인하세요.
               </p>
 
-              <div className="stat-grid">
-                {[
-                  { label: '전체 과제', value: stats.total, icon: '📋', color: '#6366f1', onClick: () => setView('tasks') },
-                  { label: '완료', value: stats.completed, icon: '✅', color: '#10b981', onClick: () => setView('tasks') },
-                  { label: '긴급', value: stats.urgent, icon: '🔴', color: '#ef4444', onClick: () => setView('tasks') },
-                  { label: '평균진행률', value: `${Math.round(stats.avgProgress)}%`, icon: '📊', color: '#8b5cf6', onClick: () => setView('analytics') },
-                ].map((stat, i) => (
-                  <div
-                    key={i}
-                    className="stat-card"
-                    style={{
-                      padding: 24,
-                      borderRadius: 16,
-                      background: `linear-gradient(135deg, ${stat.color}20 0%, ${stat.color}10 100%)`,
-                      border: `1px solid ${stat.color}40`,
-                      textAlign: 'center',
-                    }}
-                    onClick={stat.onClick}
-                  >
-                    <div style={{ fontSize: 40, marginBottom: 8 }}>{stat.icon}</div>
-                    <div style={{ fontSize: 36, fontWeight: 900, color: stat.color, marginBottom: 4 }}>
-                      {stat.value}
+              {/* 주요 통계 */}
+              <div style={{ marginBottom: 30 }}>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: 'white', marginBottom: 16 }}>
+                  📈 주요 통계
+                </h3>
+                <div className="stat-grid">
+                  {[
+                    { label: '보유 포인트', value: state.points.toLocaleString() + 'P', icon: '🪙', color: '#fbbf24', onClick: () => setView('points') },
+                    { label: '전체 수업', value: state.lessons.length, icon: '👨‍🏫', color: '#8b5cf6', onClick: () => setView('teaching') },
+                    { label: '행동 기록', value: state.behaviorLog.length, icon: '📋', color: '#3b82f6', onClick: () => setView('behaviorAnalytics') },
+                    { label: '집중 세션', value: state.focusHistory.length, icon: '⏱️', color: '#10b981', onClick: () => setView('focus') },
+                    { label: '전체 과제', value: stats.total, icon: '✅', color: '#6366f1', onClick: () => setView('tasks') },
+                    { label: '완료 과제', value: stats.completed, icon: '✔️', color: '#22c55e', onClick: () => setView('tasks') },
+                  ].map((stat, i) => (
+                    <div
+                      key={i}
+                      className="stat-card"
+                      style={{
+                        padding: 20,
+                        borderRadius: 12,
+                        background: `linear-gradient(135deg, ${stat.color}20 0%, ${stat.color}10 100%)`,
+                        border: `1px solid ${stat.color}40`,
+                        textAlign: 'center',
+                      }}
+                      onClick={stat.onClick}
+                    >
+                      <div style={{ fontSize: 32, marginBottom: 8 }}>{stat.icon}</div>
+                      <div style={{ fontSize: 28, fontWeight: 900, color: stat.color, marginBottom: 4 }}>
+                        {stat.value}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>
+                        {stat.label}
+                      </div>
                     </div>
-                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>
-                      {stat.label}
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
 
+              {/* 빠른 실행 */}
+              <div style={{ marginBottom: 30 }}>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: 'white', marginBottom: 16 }}>
+                  ⚡ 빠른 실행
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+                  {[
+                    { label: '새 과제 추가', icon: '➕', color: '#6366f1', onClick: () => { setView('tasks'); setTimeout(addTask, 100); } },
+                    { label: '수업 추가', icon: '👨‍🏫', color: '#8b5cf6', onClick: () => setView('teaching') },
+                    { label: '집중 시작', icon: '⏱️', color: '#10b981', onClick: () => { setView('focus'); } },
+                    { label: '일정 추가', icon: '🚗', color: '#f59e0b', onClick: () => setView('schedule') },
+                  ].map((action, i) => (
+                    <button
+                      key={i}
+                      style={{
+                        padding: '16px 12px',
+                        borderRadius: 10,
+                        background: `linear-gradient(135deg, ${action.color}30 0%, ${action.color}20 100%)`,
+                        border: `1px solid ${action.color}50`,
+                        color: 'white',
+                        fontSize: 14,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 8,
+                      }}
+                      onClick={action.onClick}
+                    >
+                      <span style={{ fontSize: 24 }}>{action.icon}</span>
+                      <span>{action.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 오늘의 수업 */}
+              {(() => {
+                const today = new Date();
+                const todayStr = today.toLocaleDateString('ko-KR');
+                const todayLessons = state.lessons.filter(l => l.date && new Date(l.date).toLocaleDateString('ko-KR') === todayStr);
+
+                return todayLessons.length > 0 && (
+                  <div style={{ marginBottom: 30 }}>
+                    <h3 style={{ fontSize: 18, fontWeight: 700, color: 'white', marginBottom: 16 }}>
+                      📚 오늘의 수업 ({todayLessons.length}개)
+                    </h3>
+                    <div style={{ display: 'grid', gap: 12 }}>
+                      {todayLessons.slice(0, 5).map(lesson => (
+                        <div
+                          key={lesson.id}
+                          style={{
+                            padding: 16,
+                            background: 'rgba(139, 92, 246, 0.2)',
+                            border: '1px solid rgba(139, 92, 246, 0.3)',
+                            borderRadius: 10,
+                          }}
+                        >
+                          <div style={{ fontSize: 16, fontWeight: 700, color: '#c4b5fd', marginBottom: 4 }}>
+                            {lesson.period} - {lesson.subject}
+                          </div>
+                          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>
+                            {lesson.topic || '주제 미입력'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 다가오는 일정 */}
               {state.schedules.length > 0 && (
-                <div style={{ marginTop: 24 }}>
-                  <h3 style={{ fontSize: 18, fontWeight: 700, color: 'white', marginBottom: 12 }}>
+                <div style={{ marginBottom: 30 }}>
+                  <h3 style={{ fontSize: 18, fontWeight: 700, color: 'white', marginBottom: 16 }}>
                     ⏰ 다가오는 일정
                   </h3>
                   {state.schedules
@@ -3598,15 +3674,43 @@
                     .sort((a, b) => a.arrivalTs - b.arrivalTs)
                     .slice(0, 3)
                     .map(sch => (
-                      <CountdownBar 
-                        key={sch.id} 
-                        schedule={sch} 
+                      <CountdownBar
+                        key={sch.id}
+                        schedule={sch}
                         now={nowMs() + tick * 1000}
                         onAlert={handleScheduleAlert}
                       />
                     ))}
                 </div>
               )}
+
+              {/* 성과 요약 */}
+              <div>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: 'white', marginBottom: 16 }}>
+                  🎯 이번 주 성과
+                </h3>
+                <div style={{
+                  padding: 20,
+                  background: 'rgba(0,0,0,0.2)',
+                  borderRadius: 12,
+                  border: '1px solid rgba(255,255,255,0.1)',
+                }}>
+                  <div style={{ display: 'grid', gap: 12, fontSize: 14, color: 'rgba(255,255,255,0.8)' }}>
+                    <div>
+                      • 집중 성공 세션: {state.focusHistory.filter(f => f.success).length}회
+                    </div>
+                    <div>
+                      • 완료된 과제: {stats.completed}개
+                    </div>
+                    <div>
+                      • 진행 중인 과제: {stats.total - stats.completed}개
+                    </div>
+                    <div style={{ color: '#fbbf24', fontWeight: 700, marginTop: 8 }}>
+                      총 획득 포인트: {state.points.toLocaleString()}P
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
