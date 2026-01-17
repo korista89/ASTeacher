@@ -6,7 +6,39 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>ADHD 특수교사 통합 관리 시스템 Pro v2.1</title>
+  <title>ADHD 특수교사 통합 관리 시스템 Pro v2.2</title>
+  <script>
+    // Force cache refresh - Version 2.2
+    (function() {
+      const CURRENT_VERSION = '2.2.0';
+      const LAST_VERSION = localStorage.getItem('app_version');
+
+      console.log('Current Version:', CURRENT_VERSION);
+      console.log('Last Loaded Version:', LAST_VERSION);
+
+      if (LAST_VERSION !== CURRENT_VERSION) {
+        console.log('🔄 New version detected! Clearing cache...');
+        localStorage.setItem('app_version', CURRENT_VERSION);
+
+        // Clear all cache storages
+        if ('caches' in window) {
+          caches.keys().then(function(names) {
+            for (let name of names) {
+              caches.delete(name);
+            }
+          });
+        }
+
+        // Force reload from server
+        if (LAST_VERSION) {
+          console.log('📥 Forcing reload from server...');
+          window.location.reload(true);
+        }
+      } else {
+        console.log('✓ Already on latest version');
+      }
+    })();
+  </script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
