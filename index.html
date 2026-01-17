@@ -4,13 +4,28 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ADHD 특수교사 통합 관리 시스템 Pro v2.0</title>
-  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <script>
+    // Check if external libraries are loading
+    window.addEventListener('DOMContentLoaded', function() {
+      console.log('DOM loaded');
+      setTimeout(function() {
+        console.log('React:', typeof React !== 'undefined' ? '✓' : '✗');
+        console.log('ReactDOM:', typeof ReactDOM !== 'undefined' ? '✓' : '✗');
+        console.log('Babel:', typeof Babel !== 'undefined' ? '✓' : '✗');
+
+        if (typeof React === 'undefined' || typeof ReactDOM === 'undefined' || typeof Babel === 'undefined') {
+          document.getElementById('root').innerHTML = '<div style="padding: 40px; color: white;"><h1>❌ 외부 라이브러리 로딩 실패</h1><p>React, ReactDOM, 또는 Babel을 로드할 수 없습니다. 인터넷 연결을 확인해주세요.</p></div>';
+        }
+      }, 2000);
+    });
+  </script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     
@@ -939,9 +954,31 @@
   </style>
 </head>
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <div style="display: flex; justify-content: center; align-items: center; min-height: 100vh; background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 50%, #0a0e27 100%); color: white; font-family: sans-serif;">
+      <div style="text-align: center;">
+        <h1 style="font-size: 36px; margin-bottom: 20px;">⏳ 로딩 중...</h1>
+        <p style="color: rgba(255,255,255,0.7);">시스템을 불러오고 있습니다.</p>
+      </div>
+    </div>
+  </div>
 <script type="text/babel">
+    console.log('========================================');
+    console.log('🚀 Babel script execution started');
+    console.log('Time:', new Date().toLocaleTimeString());
+    console.log('========================================');
+
+    if (typeof React === 'undefined') {
+      throw new Error('React is not loaded!');
+    }
+    if (typeof ReactDOM === 'undefined') {
+      throw new Error('ReactDOM is not loaded!');
+    }
+
+    console.log('✓ React libraries confirmed loaded');
+
     const { useEffect, useMemo, useRef, useState, useCallback } = React;
+    console.log('✓ React hooks destructured successfully');
 
     const LS_KEY = "adhd_pro_manager_v2_upgraded";
 
@@ -1728,9 +1765,22 @@
         </div>
       );
     }
-// 메인 App 컴포넌트
+
+    console.log('✓ All helper components defined');
+
+    // 메인 App 컴포넌트
     function App() {
-      const [state, setState] = useState(loadState);
+      console.log('🎯 App component rendering...');
+      const [state, setState] = useState(() => {
+        console.log('📦 Loading state from localStorage...');
+        const loadedState = loadState();
+        console.log('✓ State loaded:', {
+          tasks: loadedState.tasks?.length,
+          lessons: loadedState.lessons?.length,
+          points: loadedState.points
+        });
+        return loadedState;
+      });
       const [view, setView] = useState('dashboard');
       const [tick, setTick] = useState(0);
       const [editingLesson, setEditingLesson] = useState(null);
@@ -2108,9 +2158,9 @@
           }
 
           // Count student evaluations with scores 3, 4, 5
-          Object.entries(state.studentEvals).forEach(([key, eval]) => {
-            if (eval.score >= 3 && eval.score <= 5 && eval.timestamp >= startDate) {
-              const weekStart = new Date(eval.timestamp);
+          Object.entries(state.studentEvals).forEach(([key, evalData]) => {
+            if (evalData.score >= 3 && evalData.score <= 5 && evalData.timestamp >= startDate) {
+              const weekStart = new Date(evalData.timestamp);
               weekStart.setDate(weekStart.getDate() - weekStart.getDay());
               const weekLabel = `${weekStart.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}주`;
 
@@ -2160,9 +2210,9 @@
           }
 
           // Count student evaluations with scores 1-5 (excluding 0)
-          Object.entries(state.studentEvals).forEach(([key, eval]) => {
-            if (eval.score >= 1 && eval.score <= 5 && eval.timestamp >= startDate) {
-              const weekStart = new Date(eval.timestamp);
+          Object.entries(state.studentEvals).forEach(([key, evalData]) => {
+            if (evalData.score >= 1 && evalData.score <= 5 && evalData.timestamp >= startDate) {
+              const weekStart = new Date(evalData.timestamp);
               weekStart.setDate(weekStart.getDate() - weekStart.getDay());
               const weekLabel = `${weekStart.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}주`;
 
@@ -2212,9 +2262,9 @@
           }
 
           // Count student evaluations with scores 1-5 (excluding 0)
-          Object.entries(state.studentEvals).forEach(([key, eval]) => {
-            if (eval.score >= 1 && eval.score <= 5 && eval.timestamp >= startDate) {
-              const dateStr = new Date(eval.timestamp).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+          Object.entries(state.studentEvals).forEach(([key, evalData]) => {
+            if (evalData.score >= 1 && evalData.score <= 5 && evalData.timestamp >= startDate) {
+              const dateStr = new Date(evalData.timestamp).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
 
               if (dailyData[dateStr]) {
                 const studentId = key.split('-')[1];
@@ -5570,8 +5620,80 @@
       );
     }
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
+    console.log('========================================');
+    console.log('✅ App component defined successfully');
+    console.log('========================================');
+
+    // Error boundary wrapper component
+    class ErrorBoundary extends React.Component {
+      constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+      }
+
+      static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+      }
+
+      componentDidCatch(error, errorInfo) {
+        console.error('React Error:', error, errorInfo);
+      }
+
+      render() {
+        if (this.state.hasError) {
+          return (
+            <div style={{ padding: 40, background: '#1a1f3a', color: 'white', minHeight: '100vh' }}>
+              <h1 style={{ color: '#ef4444' }}>⚠️ 오류가 발생했습니다</h1>
+              <p style={{ marginTop: 20, color: 'rgba(255,255,255,0.8)' }}>
+                {this.state.error?.toString()}
+              </p>
+              <button
+                onClick={() => { localStorage.clear(); window.location.reload(); }}
+                style={{ marginTop: 20, padding: '12px 24px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 16 }}
+              >
+                🔄 데이터 초기화 후 새로고침
+              </button>
+            </div>
+          );
+        }
+        return this.props.children;
+      }
+    }
+
+    console.log('========================================');
+    console.log('🎬 Starting React render process...');
+    console.log('========================================');
+
+    // Render with error handling
+    try {
+      console.log('Creating React root...');
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      console.log('✓ React root created');
+
+      console.log('Rendering App component...');
+      root.render(
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
+      );
+      console.log('========================================');
+      console.log('✅ Render call completed successfully!');
+      console.log('========================================');
+    } catch (error) {
+      console.error('========================================');
+      console.error('❌ CRITICAL ERROR during render:', error);
+      console.error('========================================');
+      document.getElementById('root').innerHTML = `
+        <div style="padding: 40px; background: #1a1f3a; color: white; min-height: 100vh;">
+          <h1 style="color: #ef4444;">❌ 초기화 오류</h1>
+          <p style="margin-top: 20px;">${error.toString()}</p>
+          <button onclick="localStorage.clear(); window.location.reload();"
+            style="margin-top: 20px; padding: 12px 24px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px;">
+            🔄 데이터 초기화 후 새로고침
+          </button>
+        </div>
+      `;
+    }
   </script>
 </body>
 </html>
