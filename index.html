@@ -483,6 +483,29 @@
       gap: 16px;
     }
 
+    .chart-container canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    .chart-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .chart-actions .form-select {
+      min-width: 140px;
+      flex: 1 1 160px;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+    }
+
     /* 진행률 자동 표시 */
     .auto-progress-badge {
       display: inline-flex;
@@ -690,6 +713,52 @@
       gap: 4px;
     }
 
+    .form-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+
+    .form-control,
+    .form-select,
+    .form-textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: white;
+      font-size: 16px;
+      line-height: 1.4;
+    }
+
+    .form-textarea {
+      resize: vertical;
+      min-height: 120px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 4px;
+    }
+
     .bottom-nav-btn.active {
       background: rgba(99, 102, 241, 0.3);
       color: white;
@@ -836,6 +905,10 @@
       touch-action: pan-y;
     }
 
+    .calendar-swipe {
+      touch-action: pan-y;
+    }
+
     /* 터치 피드백 */
     @media (hover: none) and (pointer: coarse) {
       button:active, .clickable:active {
@@ -898,6 +971,37 @@
     }
 
     function clamp01(x) { return Math.min(1, Math.max(0, x)); }
+
+    function startOfWeek(date) {
+      const d = new Date(date);
+      const day = d.getDay();
+      const diff = (day === 0 ? -6 : 1) - day;
+      d.setDate(d.getDate() + diff);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+
+    function addDays(date, days) {
+      const d = new Date(date);
+      d.setDate(d.getDate() + days);
+      return d;
+    }
+
+    function isSameDay(a, b) {
+      if (!a || !b) return false;
+      const da = new Date(a);
+      const db = new Date(b);
+      return da.getFullYear() === db.getFullYear() &&
+        da.getMonth() === db.getMonth() &&
+        da.getDate() === db.getDate();
+    }
+
+    function getDayLabel(date) {
+      const day = new Date(date).getDay();
+      if (day === 0) return '일';
+      if (day === 6) return '토';
+      return DAYS_OF_WEEK[day - 1];
+    }
 
     // 알림 권한 요청
     function requestNotificationPermission() {
@@ -1378,6 +1482,28 @@
         touchStartYRef.current = null;
       };
 
+      const handleTouchStart = (event) => {
+        const touch = event.touches[0];
+        touchStartXRef.current = touch.clientX;
+        touchStartYRef.current = touch.clientY;
+      };
+
+      const handleTouchEnd = (event) => {
+        if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+        const touch = event.changedTouches[0];
+        const deltaX = touch.clientX - touchStartXRef.current;
+        const deltaY = touch.clientY - touchStartYRef.current;
+        if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
+          if (deltaX > 0) {
+            prevMonth();
+          } else {
+            nextMonth();
+          }
+        }
+        touchStartXRef.current = null;
+        touchStartYRef.current = null;
+      };
+
       const days = [];
       for (let i = 0; i < startDay; i++) {
         days.push(<div key={`empty-${i}`} style={{ padding: 8 }} />);
@@ -1557,7 +1683,23 @@
       const [showMobileMenu, setShowMobileMenu] = useState(false);
       const [behaviorFilter, setBehaviorFilter] = useState({ dateRange: 30, student: 'ALL', behaviorType: 'ALL' });
       const [reportType, setReportType] = useState('weekly');
+      const [lessonWeekStart, setLessonWeekStart] = useState(() => startOfWeek(new Date()));
+      const [behaviorWeekStart, setBehaviorWeekStart] = useState(() => startOfWeek(new Date()));
+      const [behaviorWeekStudent, setBehaviorWeekStudent] = useState('ALL');
+      const [scheduleDraft, setScheduleDraft] = useState({
+        name: '',
+        arrivalTs: '',
+        departBeforeMin: 30,
+        location: '',
+        note: '',
+      });
+      const [focusDraft, setFocusDraft] = useState({
+        durationMin: 25,
+        note: '',
+      });
       const searchInputRef = useRef(null);
+      const lineChartRef = useRef(null);
+      const barChartRef = useRef(null);
 
       useEffect(() => {
         saveState(state);
@@ -1659,6 +1801,118 @@
 
         setSearchResults(results.slice(0, 20)); // 최대 20개만 표시
       }, [searchQuery, state.lessons, state.tasks, state.schedules, state.behaviorLog]);
+
+      useEffect(() => {
+        if (view !== 'behaviorAnalytics') return;
+        const lineCanvas = document.getElementById('behaviorLineChart');
+        const barCanvas = document.getElementById('behaviorBarChart');
+        if (!lineCanvas || !barCanvas || !window.Chart) return;
+
+        if (!filteredBehaviorLog.length) {
+          if (lineChartRef.current) {
+            lineChartRef.current.destroy();
+            lineChartRef.current = null;
+          }
+          if (barChartRef.current) {
+            barChartRef.current.destroy();
+            barChartRef.current = null;
+          }
+          return;
+        }
+
+        const now = Date.now();
+        const dailyData = {};
+        for (let i = 0; i < behaviorFilter.dateRange; i++) {
+          const date = new Date(now - i * 24 * 60 * 60 * 1000);
+          const dateStr = date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+          dailyData[dateStr] = 0;
+        }
+
+        filteredBehaviorLog.forEach(b => {
+          const dateStr = new Date(b.timestamp).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+          if (dailyData[dateStr] !== undefined) {
+            dailyData[dateStr]++;
+          }
+        });
+
+        const labels = Object.keys(dailyData).reverse();
+        const data = Object.values(dailyData).reverse();
+
+        if (lineChartRef.current) {
+          lineChartRef.current.destroy();
+        }
+        lineChartRef.current = new Chart(lineCanvas, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: '행동 발생 횟수',
+              data: data,
+              borderColor: '#3b82f6',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              tension: 0.4,
+              fill: true,
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 300 },
+            interaction: { mode: 'nearest', intersect: false },
+            elements: {
+              point: {
+                radius: 4,
+                hoverRadius: 6,
+                hitRadius: 12,
+              }
+            },
+            plugins: {
+              legend: { labels: { color: 'white' } }
+            },
+            scales: {
+              y: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+              x: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } }
+            }
+          }
+        });
+
+        const typeData = {};
+        filteredBehaviorLog.forEach(b => {
+          const type = BEHAVIOR_TYPES[b.behaviorType]?.label || b.behaviorType;
+          typeData[type] = (typeData[type] || 0) + 1;
+        });
+
+        if (barChartRef.current) {
+          barChartRef.current.destroy();
+        }
+        barChartRef.current = new Chart(barCanvas, {
+          type: 'bar',
+          data: {
+            labels: Object.keys(typeData),
+            datasets: [{
+              label: '발생 횟수',
+              data: Object.values(typeData),
+              backgroundColor: Object.keys(typeData).map(type => {
+                const behaviorType = Object.values(BEHAVIOR_TYPES).find(t => t.label === type);
+                return behaviorType ? behaviorType.color : '#6b7280';
+              }),
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 300 },
+            interaction: { mode: 'nearest', intersect: false },
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              y: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+              x: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } }
+            }
+          }
+        });
+      }, [view, filteredBehaviorLog, behaviorFilter.dateRange]);
 
       // 검색 기록 저장
       const saveSearchHistory = (query) => {
@@ -1786,14 +2040,42 @@
           // 수정
           setState(p => ({
             ...p,
-            lessons: p.lessons.map(l => l.id === lesson.id ? lesson : l)
+            lessons: p.lessons.map(l => l.id === lesson.id ? { ...lesson } : l)
           }));
         } else {
           // 추가
-          setState(p => ({
-            ...p,
-            lessons: [...p.lessons, { ...lesson, id: uuid() }]
-          }));
+          if (lesson.repeatWeekly && (!lesson.date || !lesson.repeatUntil)) {
+            alert('반복 수업은 날짜와 종료일을 모두 입력해주세요.');
+            return;
+          }
+          const baseLesson = {
+            ...lesson,
+            date: lesson.date ? new Date(lesson.date).getTime() : null,
+            dayOfWeek: lesson.date ? getDayLabel(lesson.date) : lesson.dayOfWeek,
+          };
+          if (lesson.repeatWeekly && lesson.repeatUntil && baseLesson.date) {
+            const repeatUntil = new Date(lesson.repeatUntil).getTime();
+            const newLessons = [];
+            let cursor = baseLesson.date;
+            while (cursor <= repeatUntil) {
+              newLessons.push({
+                ...baseLesson,
+                id: uuid(),
+                date: cursor,
+                dayOfWeek: getDayLabel(cursor),
+              });
+              cursor += 7 * 24 * 60 * 60 * 1000;
+            }
+            setState(p => ({
+              ...p,
+              lessons: [...p.lessons, ...newLessons],
+            }));
+          } else {
+            setState(p => ({
+              ...p,
+              lessons: [...p.lessons, { ...baseLesson, id: uuid() }]
+            }));
+          }
         }
         setEditingLesson(null);
       };
@@ -2229,6 +2511,166 @@
         });
       }, [state.behaviorLog, behaviorFilter]);
 
+      const lessonWeekDates = useMemo(() => {
+        return Array.from({ length: 5 }, (_, i) => addDays(lessonWeekStart, i));
+      }, [lessonWeekStart]);
+
+      const behaviorWeekDates = useMemo(() => {
+        return Array.from({ length: 5 }, (_, i) => addDays(behaviorWeekStart, i));
+      }, [behaviorWeekStart]);
+
+      const weeklyBehaviorLogs = useMemo(() => {
+        const start = new Date(behaviorWeekStart);
+        const end = addDays(start, 5);
+        return state.behaviorLog.filter(log => {
+          if (!log.timestamp) return false;
+          if (behaviorWeekStudent !== 'ALL' && log.studentName !== behaviorWeekStudent) return false;
+          const ts = new Date(log.timestamp);
+          return ts >= start && ts < end;
+        });
+      }, [state.behaviorLog, behaviorWeekStart, behaviorWeekStudent]);
+
+      const focusStatus = useMemo(() => {
+        const focus = state.focus;
+        if (!focus.startedTs) {
+          return {
+            remainingMs: focus.durationSec * 1000,
+            elapsedMs: 0,
+          };
+        }
+        const now = nowMs();
+        const elapsed = focus.paused
+          ? focus.elapsedBeforePause
+          : focus.elapsedBeforePause + (now - focus.startedTs);
+        const remaining = Math.max(0, focus.durationSec * 1000 - elapsed);
+        return {
+          remainingMs: remaining,
+          elapsedMs: elapsed,
+        };
+      }, [state.focus, tick]);
+
+      useEffect(() => {
+        if (!state.focus.running || state.focus.paused) return;
+        if (focusStatus.remainingMs > 0) return;
+        setState(p => ({
+          ...p,
+          focus: {
+            ...p.focus,
+            running: false,
+            paused: false,
+            startedTs: null,
+            pausedAt: null,
+            elapsedBeforePause: 0,
+          },
+        }));
+        setShowAlert({ title: '✅ 집중 종료', message: '집중 시간이 완료되었습니다!' });
+        setTimeout(() => setShowAlert(null), 4000);
+      }, [focusStatus.remainingMs, state.focus.running, state.focus.paused]);
+
+      const startFocus = () => {
+        setState(p => ({
+          ...p,
+          focus: {
+            ...p.focus,
+            running: true,
+            paused: false,
+            durationSec: focusDraft.durationMin * 60,
+            startedTs: nowMs(),
+            pausedAt: null,
+            elapsedBeforePause: 0,
+            note: focusDraft.note,
+          },
+        }));
+      };
+
+      const pauseFocus = () => {
+        setState(p => ({
+          ...p,
+          focus: {
+            ...p.focus,
+            paused: true,
+            pausedAt: nowMs(),
+            elapsedBeforePause: focusStatus.elapsedMs,
+          },
+        }));
+      };
+
+      const resumeFocus = () => {
+        setState(p => ({
+          ...p,
+          focus: {
+            ...p.focus,
+            paused: false,
+            startedTs: nowMs(),
+            pausedAt: null,
+          },
+        }));
+      };
+
+      const resetFocus = () => {
+        setState(p => ({
+          ...p,
+          focus: {
+            ...p.focus,
+            running: false,
+            paused: false,
+            startedTs: null,
+            pausedAt: null,
+            elapsedBeforePause: 0,
+          },
+        }));
+      };
+
+      const addSchedule = () => {
+        if (!scheduleDraft.name || !scheduleDraft.arrivalTs) {
+          alert('일정 이름과 도착 시간을 입력해주세요.');
+          return;
+        }
+        const arrival = fromLocalDatetimeValue(scheduleDraft.arrivalTs);
+        if (!arrival) {
+          alert('올바른 도착 시간을 입력해주세요.');
+          return;
+        }
+        setState(p => ({
+          ...p,
+          schedules: [
+            ...p.schedules,
+            {
+              id: uuid(),
+              name: scheduleDraft.name,
+              arrivalTs: arrival,
+              departBeforeMin: parseInt(scheduleDraft.departBeforeMin) || 0,
+              location: scheduleDraft.location,
+              note: scheduleDraft.note,
+            }
+          ]
+        }));
+        setScheduleDraft({ name: '', arrivalTs: '', departBeforeMin: 30, location: '', note: '' });
+      };
+
+      const deleteSchedule = (scheduleId) => {
+        if (!confirm('정말 삭제하시겠습니까?')) return;
+        setState(p => ({
+          ...p,
+          schedules: p.schedules.filter(s => s.id !== scheduleId),
+        }));
+      };
+
+      const behaviorStudents = useMemo(() => {
+        return Array.from(new Set(state.behaviorLog.map(b => b.studentName).filter(Boolean))).sort();
+      }, [state.behaviorLog]);
+
+      const filteredBehaviorLog = useMemo(() => {
+        const now = Date.now();
+        const rangeMs = behaviorFilter.dateRange * 24 * 60 * 60 * 1000;
+        return state.behaviorLog.filter(b => {
+          if (b.timestamp < now - rangeMs) return false;
+          if (behaviorFilter.student !== 'ALL' && b.studentName !== behaviorFilter.student) return false;
+          if (behaviorFilter.behaviorType !== 'ALL' && b.behaviorType !== behaviorFilter.behaviorType) return false;
+          return true;
+        });
+      }, [state.behaviorLog, behaviorFilter]);
+
       return (
         <div style={styles.container} className="app-container">
           {/* 알림 배너 */}
@@ -2327,7 +2769,6 @@
                   { key: 'teaching', icon: '👨‍🏫', label: '수업관리' },
                   { key: 'behavior', icon: '🎯', label: 'PBS 행동지원' },
                   { key: 'behaviorAnalytics', icon: '📈', label: '행동 그래프' },
-                  { key: 'reports', icon: '📄', label: '보고서' },
                   { key: 'focus', icon: '⏱️', label: '집중' },
                   { key: 'schedule', icon: '🚗', label: '일정' },
                   { key: 'calendar', icon: '📅', label: '캘린더' },
@@ -2359,7 +2800,6 @@
               { key: 'teaching', icon: '👨‍🏫', label: '수업관리' },
               { key: 'behavior', icon: '🎯', label: 'PBS 행동지원' },
               { key: 'behaviorAnalytics', icon: '📈', label: '행동 그래프' },
-              { key: 'reports', icon: '📄', label: '보고서' },
               { key: 'focus', icon: '⏱️', label: '집중' },
               { key: 'schedule', icon: '🚗', label: '일정' },
               { key: 'calendar', icon: '📅', label: '캘린더' },
@@ -2395,7 +2835,7 @@
                 { key: 'dashboard', icon: '📊', label: '홈' },
                 { key: 'tasks', icon: '✅', label: '과제' },
                 { key: 'behavior', icon: '🎯', label: '행동' },
-                { key: 'reports', icon: '📄', label: '보고서' },
+                { key: 'schedule', icon: '🚗', label: '일정' },
               ].map(item => (
                 <button
                   key={item.key}
@@ -2661,23 +3101,23 @@
             <div style={styles.card} className="animate-in">
               <h2 style={styles.h2} className="section-title">👨‍🏫 수업 관리 시스템</h2>
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, marginBottom: 20 }}>
-                시간표 기반 수업 준비, 평가, 학생별 피드백 관리
+                주간 캘린더에서 날짜별 수업을 관리하고, 반복 수업을 손쉽게 추가하세요.
               </p>
 
-              <div style={{ marginBottom: 20, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <button 
+              <div style={{ marginBottom: 20, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                <button
                   style={styles.btn}
-                  onClick={() => setEditingLesson({ dayOfWeek: '월', period: '1교시' })}
+                  onClick={() => setEditingLesson({ date: lessonWeekStart.getTime(), period: '1교시' })}
                 >
                   ➕ 수업 추가
                 </button>
-                <button 
+                <button
                   style={{ ...styles.btn, background: 'linear-gradient(135deg, #10b981, #059669)' }}
                   onClick={exportLessonsCSV}
                 >
                   💾 수업 CSV 저장
                 </button>
-                <button 
+                <button
                   style={{ ...styles.btn, background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}
                   onClick={exportEvalsCSV}
                 >
@@ -2689,26 +3129,52 @@
                 </label>
               </div>
 
-              {/* 시간표 */}
+              <div className="calendar-header" style={{ marginBottom: 16 }}>
+                <button
+                  style={{ ...styles.btn2, padding: '10px 16px' }}
+                  onClick={() => setLessonWeekStart(addDays(lessonWeekStart, -7))}
+                >
+                  ◀ 이전 주
+                </button>
+                <div style={{ fontSize: 18, fontWeight: 800, color: 'white' }}>
+                  {lessonWeekStart.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} 주간
+                </div>
+                <button
+                  style={{ ...styles.btn2, padding: '10px 16px' }}
+                  onClick={() => setLessonWeekStart(addDays(lessonWeekStart, 7))}
+                >
+                  다음 주 ▶
+                </button>
+              </div>
+
+              {/* 주간 수업표 */}
               <div className="timetable">
                 <div className="timetable-header">교시</div>
-                {DAYS_OF_WEEK.map(day => (
-                  <div key={day} className="timetable-header">{day}요일</div>
+                {lessonWeekDates.map((dayDate) => (
+                  <div key={dayDate.toISOString()} className="timetable-header">
+                    <div>{getDayLabel(dayDate)}요일</div>
+                    <div style={{ fontSize: 11, marginTop: 4 }}>
+                      {dayDate.toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}
+                    </div>
+                  </div>
                 ))}
 
-                {PERIODS.map((period, periodIdx) => (
+                {PERIODS.map((period) => (
                   <React.Fragment key={period}>
                     <div className="timetable-cell" style={{ fontWeight: 900, background: 'rgba(59, 130, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {period}
                     </div>
-                    {DAYS_OF_WEEK.map((day, dayIdx) => {
-                      const lessons = state.lessons.filter(l => l.dayOfWeek === day && l.period === period);
-                      
+                    {lessonWeekDates.map((dayDate) => {
+                      const lessons = state.lessons.filter(l => {
+                        if (l.date) return isSameDay(l.date, dayDate) && l.period === period;
+                        return l.dayOfWeek === getDayLabel(dayDate) && l.period === period;
+                      });
+
                       return (
-                        <div 
-                          key={`${day}-${period}`} 
+                        <div
+                          key={`${dayDate.toISOString()}-${period}`}
                           className="timetable-cell"
-                          onClick={() => setEditingLesson({ dayOfWeek: day, period })}
+                          onClick={() => setEditingLesson({ date: dayDate.getTime(), period })}
                         >
                           {lessons.length === 0 ? (
                             <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>
@@ -2716,8 +3182,8 @@
                             </div>
                           ) : (
                             lessons.map(lesson => (
-                              <div 
-                                key={lesson.id} 
+                              <div
+                                key={lesson.id}
                                 className="lesson-card"
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -2753,7 +3219,7 @@
                 {state.lessons.slice(0, 5).map(lesson => (
                   <div key={lesson.id} style={{ marginBottom: 24, padding: 16, background: 'rgba(0,0,0,0.2)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)' }}>
                     <div style={{ fontSize: 16, fontWeight: 700, color: '#a78bfa', marginBottom: 12 }}>
-                      {lesson.subject} - {lesson.dayOfWeek}요일 {lesson.period}
+                      {lesson.subject} - {lesson.date ? new Date(lesson.date).toLocaleDateString('ko-KR') : `${lesson.dayOfWeek}요일`} {lesson.period}
                     </div>
 
                     <div className="student-eval-grid">
@@ -2804,13 +3270,130 @@
             </div>
           )}
 
+          {/* 집중 타이머 */}
+          {view === 'focus' && (
+            <div style={styles.card} className="animate-in">
+              <h2 style={styles.h2} className="section-title">⏱️ 집중 타이머</h2>
+              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, marginBottom: 16 }}>
+                간단한 집중 타이머로 수업 준비, 기록 작성 시간을 관리하세요.
+              </p>
+
+              <CircularTimer remainingMs={focusStatus.remainingMs} totalMs={state.focus.durationSec * 1000} />
+
+              <div style={{ marginTop: 20, display: 'grid', gap: 12 }}>
+                <div className="form-grid">
+                  <div>
+                    <label style={{ fontWeight: 700, color: 'rgba(255,255,255,0.8)' }}>집중 시간(분)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      className="form-control"
+                      value={focusDraft.durationMin}
+                      onChange={(e) => setFocusDraft({ ...focusDraft, durationMin: parseInt(e.target.value) || 1 })}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontWeight: 700, color: 'rgba(255,255,255,0.8)' }}>메모</label>
+                    <input
+                      className="form-control"
+                      value={focusDraft.note}
+                      onChange={(e) => setFocusDraft({ ...focusDraft, note: e.target.value })}
+                      placeholder="예: 행동 기록 정리"
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontWeight: 700, color: 'rgba(255,255,255,0.8)' }}>상태</label>
+                    <div style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)' }}>
+                      {state.focus.running ? (state.focus.paused ? '일시정지' : '집중 중') : '대기'}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {!state.focus.running && (
+                    <button style={styles.btn} onClick={startFocus}>
+                      ▶️ 시작
+                    </button>
+                  )}
+                  {state.focus.running && !state.focus.paused && (
+                    <button style={{ ...styles.btn, background: 'linear-gradient(135deg, #f59e0b, #d97706)' }} onClick={pauseFocus}>
+                      ⏸️ 일시정지
+                    </button>
+                  )}
+                  {state.focus.running && state.focus.paused && (
+                    <button style={{ ...styles.btn, background: 'linear-gradient(135deg, #10b981, #059669)' }} onClick={resumeFocus}>
+                      ▶️ 재개
+                    </button>
+                  )}
+                  <button style={{ ...styles.btn2, padding: '12px 20px' }} onClick={resetFocus}>
+                    🔄 초기화
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* 일정 알람 */}
           {view === 'schedule' && (
             <div style={styles.card} className="animate-in">
-              <h2 style={styles.h2} className="section-title">🚗 지각 방지 출발 알람</h2>
+              <h2 style={styles.h2} className="section-title">🚗 일정 관리 & 출발 알람</h2>
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, marginBottom: 16, padding: 12, background: 'rgba(239, 68, 68, 0.1)', borderRadius: 8, border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-                ⏰ <strong>출발 시간에 자동으로 알림이 울립니다!</strong> (소리 + 진동 + 화면 알림)
+                ⏰ <strong>출발 시간에 자동으로 알림이 울립니다!</strong> 일정 추가 후 출발 전 알림을 확인하세요.
               </p>
+
+              <div style={{ display: 'grid', gap: 12, marginBottom: 20 }}>
+                <div className="form-field">
+                  <label style={{ fontWeight: 700, color: 'rgba(255,255,255,0.8)' }}>일정 이름 *</label>
+                  <input
+                    className="form-control"
+                    value={scheduleDraft.name}
+                    onChange={(e) => setScheduleDraft({ ...scheduleDraft, name: e.target.value })}
+                    placeholder="예: 상담 일정, 학교 회의"
+                  />
+                </div>
+                <div className="form-field">
+                  <label style={{ fontWeight: 700, color: 'rgba(255,255,255,0.8)' }}>도착 시간 *</label>
+                  <input
+                    type="datetime-local"
+                    className="form-control"
+                    value={scheduleDraft.arrivalTs}
+                    onChange={(e) => setScheduleDraft({ ...scheduleDraft, arrivalTs: e.target.value })}
+                  />
+                </div>
+                <div className="form-grid">
+                  <div>
+                    <label style={{ fontWeight: 700, color: 'rgba(255,255,255,0.8)' }}>출발 전 알림(분)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="form-control"
+                      value={scheduleDraft.departBeforeMin}
+                      onChange={(e) => setScheduleDraft({ ...scheduleDraft, departBeforeMin: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontWeight: 700, color: 'rgba(255,255,255,0.8)' }}>장소</label>
+                    <input
+                      className="form-control"
+                      value={scheduleDraft.location}
+                      onChange={(e) => setScheduleDraft({ ...scheduleDraft, location: e.target.value })}
+                      placeholder="예: 교무실"
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontWeight: 700, color: 'rgba(255,255,255,0.8)' }}>메모</label>
+                    <input
+                      className="form-control"
+                      value={scheduleDraft.note}
+                      onChange={(e) => setScheduleDraft({ ...scheduleDraft, note: e.target.value })}
+                      placeholder="준비물 등"
+                    />
+                  </div>
+                </div>
+                <button style={styles.btn} onClick={addSchedule}>
+                  ➕ 일정 추가
+                </button>
+              </div>
 
               {state.schedules.length === 0 && (
                 <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,0.5)' }}>
@@ -2818,15 +3401,29 @@
                 </div>
               )}
 
-              {state.schedules.map(sch => (
-                <div key={sch.id} style={{ marginBottom: 16 }}>
-                  <CountdownBar 
-                    schedule={sch} 
-                    now={nowMs() + tick * 1000}
-                    onAlert={handleScheduleAlert}
-                  />
-                </div>
-              ))}
+              {state.schedules
+                .slice()
+                .sort((a, b) => a.arrivalTs - b.arrivalTs)
+                .map(sch => (
+                  <div key={sch.id} style={{ marginBottom: 16 }}>
+                    <CountdownBar 
+                      schedule={sch} 
+                      now={nowMs() + tick * 1000}
+                      onAlert={handleScheduleAlert}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginTop: 8, paddingLeft: 8 }}>
+                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>
+                        {sch.location ? `📍 ${sch.location}` : '📍 위치 미입력'} {sch.note ? `• ${sch.note}` : ''}
+                      </div>
+                      <button
+                        style={{ ...styles.btn2, background: 'rgba(239, 68, 68, 0.3)' }}
+                        onClick={() => deleteSchedule(sch.id)}
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  </div>
+                ))}
             </div>
           )}
 
@@ -2842,7 +3439,7 @@
           {view === 'behavior' && (
             <div style={styles.card} className="animate-in">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
-                <h2 style={styles.h2} className="section-title">🎯 PBS 행동지원 시스템</h2>
+                <h2 style={styles.h2} className="section-title">🎯 PBS 주간 행동 분포 기록지</h2>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                   <button
                     style={styles.btn}
@@ -2859,137 +3456,136 @@
                 </div>
               </div>
 
+              <div className="calendar-header" style={{ marginBottom: 16 }}>
+                <button
+                  style={{ ...styles.btn2, padding: '10px 16px' }}
+                  onClick={() => setBehaviorWeekStart(addDays(behaviorWeekStart, -7))}
+                >
+                  ◀ 이전 주
+                </button>
+                <div style={{ fontSize: 18, fontWeight: 800, color: 'white' }}>
+                  {behaviorWeekStart.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} 주간
+                </div>
+                <button
+                  style={{ ...styles.btn2, padding: '10px 16px' }}
+                  onClick={() => setBehaviorWeekStart(addDays(behaviorWeekStart, 7))}
+                >
+                  다음 주 ▶
+                </button>
+              </div>
+
+              <div className="chart-actions" style={{ marginBottom: 16 }}>
+                <select
+                  value={behaviorWeekStudent}
+                  onChange={(e) => setBehaviorWeekStudent(e.target.value)}
+                  className="form-select"
+                >
+                  <option value="ALL">전체 학생</option>
+                  {behaviorStudents.map(student => (
+                    <option key={student} value={student}>{student}</option>
+                  ))}
+                </select>
+              </div>
+
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, marginBottom: 20, padding: 12, background: 'rgba(139, 92, 246, 0.1)', borderRadius: 8, border: '1px solid rgba(139, 92, 246, 0.3)' }}>
-                📊 <strong>ABC 형식 행동 기록:</strong> 선행사건(Antecedent) - 행동(Behavior) - 후속결과(Consequence)를 체계적으로 기록하여 Be-Able 플랫폼과 연동 가능
+                📊 <strong>주간 분포 기록지:</strong> 요일별 행동 발생 분포를 한눈에 확인하고, ABC 기록으로 연결합니다.
               </p>
 
-              {state.behaviorLog.length === 0 && (
-                <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,0.5)' }}>
-                  등록된 행동 기록이 없습니다. 새 행동 기록을 추가해보세요!
-                </div>
-              )}
+              <div style={{ display: 'grid', gap: 12 }}>
+                {behaviorWeekDates.map((dayDate) => {
+                  const dayLogs = weeklyBehaviorLogs.filter(log => isSameDay(log.timestamp, dayDate));
+                  const typeCounts = {};
+                  dayLogs.forEach(log => {
+                    const label = BEHAVIOR_TYPES[log.behaviorType]?.label || log.behaviorType;
+                    typeCounts[label] = (typeCounts[label] || 0) + 1;
+                  });
 
-              {state.behaviorLog.slice().reverse().map((log) => (
-                <div
-                  key={log.id}
-                  style={{
-                    padding: 20,
-                    borderRadius: 16,
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    marginBottom: 16,
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                        <span style={{
-                          padding: '6px 12px',
-                          borderRadius: 8,
-                          background: BEHAVIOR_TYPES[log.behaviorType]?.color || '#6b7280',
-                          fontSize: 13,
-                          fontWeight: 700,
-                        }}>
-                          {BEHAVIOR_TYPES[log.behaviorType]?.icon} {BEHAVIOR_TYPES[log.behaviorType]?.label}
-                        </span>
-                        <span style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>
-                          {log.studentName}
-                        </span>
+                  return (
+                    <div
+                      key={dayDate.toISOString()}
+                      style={{
+                        padding: 16,
+                        borderRadius: 14,
+                        background: 'rgba(255,255,255,0.05)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                        <div style={{ fontSize: 16, fontWeight: 800, color: 'white' }}>
+                          {getDayLabel(dayDate)}요일 · {dayDate.toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
+                          총 {dayLogs.length}건
+                        </div>
                       </div>
-                      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>
-                        {new Date(log.timestamp).toLocaleString('ko-KR')}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button
-                        style={{ ...styles.btn2, padding: '8px 12px', background: 'rgba(59, 130, 246, 0.3)' }}
-                        onClick={() => setEditingBehavior(log)}
-                      >
-                        ✏️ 수정
-                      </button>
-                      <button
-                        style={{ ...styles.btn2, padding: '8px 12px', background: 'rgba(239, 68, 68, 0.3)' }}
-                        onClick={() => deleteBehaviorLog(log.id)}
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </div>
 
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                    gap: 12,
-                    marginBottom: 12,
-                  }}>
-                    <div>
-                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginBottom: 4, fontWeight: 700 }}>
-                        선행사건 (A)
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                        {Object.entries(BEHAVIOR_TYPES).map(([key, type]) => (
+                          <div
+                            key={key}
+                            style={{
+                              padding: '6px 10px',
+                              borderRadius: 999,
+                              border: `1px solid ${type.color}55`,
+                              background: `${type.color}20`,
+                              fontSize: 12,
+                              color: 'white',
+                              fontWeight: 700,
+                            }}
+                          >
+                            {type.icon} {type.label} · {typeCounts[type.label] || 0}
+                          </div>
+                        ))}
                       </div>
-                      <div style={{ fontSize: 14, color: 'white' }}>
-                        {log.antecedent || '-'}
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginBottom: 4, fontWeight: 700 }}>
-                        행동 (B)
-                      </div>
-                      <div style={{ fontSize: 14, color: 'white', fontWeight: 700 }}>
-                        {log.behavior || '-'}
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginBottom: 4, fontWeight: 700 }}>
-                        후속결과 (C)
-                      </div>
-                      <div style={{ fontSize: 14, color: 'white' }}>
-                        {log.consequence || '-'}
-                      </div>
-                    </div>
-                  </div>
 
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(3, 1fr)',
-                    gap: 12,
-                    padding: 12,
-                    background: 'rgba(0,0,0,0.2)',
-                    borderRadius: 8,
-                    marginBottom: 12,
-                  }}>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginBottom: 4 }}>빈도</div>
-                      <div style={{ fontSize: 18, fontWeight: 900, color: '#3b82f6' }}>{log.frequency}회</div>
+                      {dayLogs.length === 0 ? (
+                        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
+                          기록된 행동이 없습니다.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'grid', gap: 8 }}>
+                          {dayLogs.map(log => (
+                            <div
+                              key={log.id}
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: '10px 12px',
+                                borderRadius: 10,
+                                background: 'rgba(0,0,0,0.2)',
+                              }}
+                            >
+                              <div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>
+                                  {log.studentName} · {log.behavior}
+                                </div>
+                                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
+                                  {BEHAVIOR_TYPES[log.behaviorType]?.label} · {log.antecedent || '선행사건 미입력'}
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <button
+                                  style={{ ...styles.btn2, padding: '6px 10px', background: 'rgba(59, 130, 246, 0.3)' }}
+                                  onClick={() => setEditingBehavior(log)}
+                                >
+                                  수정
+                                </button>
+                                <button
+                                  style={{ ...styles.btn2, padding: '6px 10px', background: 'rgba(239, 68, 68, 0.3)' }}
+                                  onClick={() => deleteBehaviorLog(log.id)}
+                                >
+                                  삭제
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginBottom: 4 }}>강도</div>
-                      <div style={{ fontSize: 18, fontWeight: 900, color: '#f59e0b' }}>
-                        {'⭐'.repeat(log.intensity || 1)}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginBottom: 4 }}>지속시간</div>
-                      <div style={{ fontSize: 18, fontWeight: 900, color: '#10b981' }}>{log.duration}분</div>
-                    </div>
-                  </div>
-
-                  {log.interventionNote && (
-                    <div style={{
-                      padding: 12,
-                      background: 'rgba(139, 92, 246, 0.1)',
-                      borderRadius: 8,
-                      border: '1px solid rgba(139, 92, 246, 0.3)',
-                    }}>
-                      <div style={{ fontSize: 12, color: '#a78bfa', marginBottom: 6, fontWeight: 700 }}>
-                        💡 중재 노트
-                      </div>
-                      <div style={{ fontSize: 14, color: 'white', lineHeight: 1.6 }}>
-                        {log.interventionNote}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -3120,215 +3716,11 @@
                     <canvas id="behaviorBarChart"></canvas>
                   </div>
 
-                  {/* Chart.js 차트 렌더링 */}
-                  {(() => {
-                    setTimeout(() => {
-                      const now = Date.now();
-                      const filtered = filteredBehaviorLog;
-
-                      // 일별 데이터 집계
-                      const dailyData = {};
-                      for (let i = 0; i < behaviorFilter.dateRange; i++) {
-                        const date = new Date(now - i * 24 * 60 * 60 * 1000);
-                        const dateStr = date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
-                        dailyData[dateStr] = 0;
-                      }
-
-                      filtered.forEach(b => {
-                        const dateStr = new Date(b.timestamp).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
-                        if (dailyData[dateStr] !== undefined) {
-                          dailyData[dateStr]++;
-                        }
-                      });
-
-                      const labels = Object.keys(dailyData).reverse();
-                      const data = Object.values(dailyData).reverse();
-
-                      // 라인 차트
-                      const lineCtx = document.getElementById('behaviorLineChart');
-                      if (lineCtx && window.Chart) {
-                        const existingLine = Chart.getChart('behaviorLineChart');
-                        if (existingLine) existingLine.destroy();
-
-                        new Chart(lineCtx, {
-                          type: 'line',
-                          data: {
-                            labels: labels,
-                            datasets: [{
-                              label: '행동 발생 횟수',
-                              data: data,
-                              borderColor: '#3b82f6',
-                              backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                              tension: 0.4,
-                              fill: true,
-                            }]
-                          },
-                          options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            interaction: { mode: 'nearest', intersect: false },
-                            elements: {
-                              point: {
-                                radius: 4,
-                                hoverRadius: 6,
-                                hitRadius: 12,
-                              }
-                            },
-                            plugins: {
-                              legend: { labels: { color: 'white' } }
-                            },
-                            scales: {
-                              y: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } },
-                              x: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } }
-                            }
-                          }
-                        });
-                      }
-
-                      // 행동 유형별 데이터
-                      const typeData = {};
-                      filtered.forEach(b => {
-                        const type = BEHAVIOR_TYPES[b.behaviorType]?.label || b.behaviorType;
-                        typeData[type] = (typeData[type] || 0) + 1;
-                      });
-
-                      // 바 차트
-                      const barCtx = document.getElementById('behaviorBarChart');
-                      if (barCtx && window.Chart) {
-                        const existingBar = Chart.getChart('behaviorBarChart');
-                        if (existingBar) existingBar.destroy();
-
-                        new Chart(barCtx, {
-                          type: 'bar',
-                          data: {
-                            labels: Object.keys(typeData),
-                            datasets: [{
-                              label: '발생 횟수',
-                              data: Object.values(typeData),
-                              backgroundColor: Object.keys(typeData).map(type => {
-                                const behaviorType = Object.values(BEHAVIOR_TYPES).find(t => t.label === type);
-                                return behaviorType ? behaviorType.color : '#6b7280';
-                              }),
-                            }]
-                          },
-                          options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            interaction: { mode: 'nearest', intersect: false },
-                            plugins: {
-                              legend: { display: false }
-                            },
-                            scales: {
-                              y: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } },
-                              x: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } }
-                            }
-                          }
-                        });
-                      }
-                    }, 100);
-
-                    return null;
-                  })()}
                 </div>
               )}
             </div>
           )}
 
-          {/* 보고서 생성 */}
-          {view === 'reports' && (
-            <div style={styles.card} className="animate-in">
-              <h2 style={styles.h2} className="section-title">📄 자동 보고서 생성</h2>
-              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, marginBottom: 30 }}>
-                주간/월간 보고서를 PDF 또는 CSV 형식으로 자동 생성합니다.
-              </p>
-
-              {/* 주간 수업 보고서 */}
-              <div style={{
-                padding: 24,
-                borderRadius: 16,
-                background: 'rgba(59, 130, 246, 0.1)',
-                border: '1px solid rgba(59, 130, 246, 0.3)',
-                marginBottom: 20,
-              }}>
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: '#60a5fa', marginBottom: 12 }}>
-                  📚 주간 수업 보고서
-                </h3>
-                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 16, lineHeight: 1.6 }}>
-                  최근 7일간의 수업 내용, 주제, 목표를 요약한 보고서를 생성합니다.
-                </p>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <button
-                    style={styles.btn}
-                    onClick={generateWeeklyLessonReport}
-                  >
-                    💾 CSV 다운로드
-                  </button>
-                  <button
-                    style={{ ...styles.btn, background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}
-                    onClick={() => generatePDFReport('weekly')}
-                  >
-                    📕 PDF 다운로드
-                  </button>
-                </div>
-              </div>
-
-              {/* 월간 행동 보고서 */}
-              <div style={{
-                padding: 24,
-                borderRadius: 16,
-                background: 'rgba(139, 92, 246, 0.1)',
-                border: '1px solid rgba(139, 92, 246, 0.3)',
-                marginBottom: 20,
-              }}>
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: '#a78bfa', marginBottom: 12 }}>
-                  🎯 월간 행동 보고서
-                </h3>
-                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 16, lineHeight: 1.6 }}>
-                  최근 30일간의 행동 기록, 유형별 집계, 추세 분석을 포함한 보고서를 생성합니다.
-                </p>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <button
-                    style={styles.btn}
-                    onClick={generateMonthlyBehaviorReport}
-                  >
-                    💾 CSV 다운로드
-                  </button>
-                  <button
-                    style={{ ...styles.btn, background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}
-                    onClick={() => generatePDFReport('monthly')}
-                  >
-                    📕 PDF 다운로드
-                  </button>
-                </div>
-              </div>
-
-              {/* 보고서 미리보기 */}
-              <div style={{
-                padding: 24,
-                borderRadius: 16,
-                background: 'rgba(16, 185, 129, 0.1)',
-                border: '1px solid rgba(16, 185, 129, 0.3)',
-              }}>
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: '#10b981', marginBottom: 12 }}>
-                  📊 데이터 현황
-                </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 16 }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 32, fontWeight: 900, color: '#10b981' }}>{state.lessons.length}</div>
-                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>총 수업 수</div>
-                  </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 32, fontWeight: 900, color: '#8b5cf6' }}>{state.behaviorLog.length}</div>
-                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>총 행동 기록</div>
-                  </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 32, fontWeight: 900, color: '#3b82f6' }}>{Object.keys(state.studentEvals).length}</div>
-                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>총 평가 수</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* 수업 편집 모달 */}
           {editingLesson && (
@@ -3338,78 +3730,98 @@
                   {editingLesson.id ? '✏️ 수업 수정' : '➕ 수업 추가'}
                 </h2>
 
-                <div style={{ marginBottom: 16 }}>
-                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>요일</label>
-                  <select
-                    value={editingLesson.dayOfWeek || '월'}
-                    onChange={(e) => setEditingLesson({ ...editingLesson, dayOfWeek: e.target.value })}
-                    style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14 }}
-                  >
-                    {DAYS_OF_WEEK.map(day => <option key={day} value={day}>{day}요일</option>)}
-                  </select>
+                <div className="form-field">
+                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>날짜</label>
+                  <input
+                    type="date"
+                    value={editingLesson.date ? toLocalDateValue(editingLesson.date) : ''}
+                    onChange={(e) => setEditingLesson({ ...editingLesson, date: e.target.value ? new Date(e.target.value).getTime() : null })}
+                    className="form-control"
+                  />
                 </div>
 
-                <div style={{ marginBottom: 16 }}>
+                <div className="form-field">
                   <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>교시</label>
                   <select
                     value={editingLesson.period || '1교시'}
                     onChange={(e) => setEditingLesson({ ...editingLesson, period: e.target.value })}
-                    style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14 }}
+                    className="form-select"
                   >
                     {PERIODS.map(period => <option key={period} value={period}>{period}</option>)}
                   </select>
                 </div>
 
-                <div style={{ marginBottom: 16 }}>
+                <div className="form-field">
                   <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>과목명 *</label>
                   <input
                     type="text"
                     placeholder="예: 수학, 국어, 사회성 훈련"
                     value={editingLesson.subject || ''}
                     onChange={(e) => setEditingLesson({ ...editingLesson, subject: e.target.value })}
-                    style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14 }}
+                    className="form-control"
                   />
                 </div>
 
-                <div style={{ marginBottom: 16 }}>
+                <div className="form-field">
                   <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>제재/단원</label>
                   <input
                     type="text"
                     placeholder="예: 덧셈과 뺄셈, 감정 표현하기"
                     value={editingLesson.topic || ''}
                     onChange={(e) => setEditingLesson({ ...editingLesson, topic: e.target.value })}
-                    style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14 }}
+                    className="form-control"
                   />
                 </div>
 
-                <div style={{ marginBottom: 16 }}>
+                <div className="form-field">
                   <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>목표</label>
                   <textarea
                     placeholder="예: 학생은 10 이하의 수를 더하고 뺄 수 있다."
                     value={editingLesson.goal || ''}
                     onChange={(e) => setEditingLesson({ ...editingLesson, goal: e.target.value })}
                     rows={3}
-                    style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14, resize: 'vertical' }}
+                    className="form-textarea"
                   />
                 </div>
 
-                <div style={{ marginBottom: 16 }}>
+                <div className="form-field">
                   <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>활동</label>
                   <textarea
                     placeholder="예: 1. 숫자 카드로 게임하기 2. 워크시트 활동 3. 마무리 활동"
                     value={editingLesson.activity || ''}
                     onChange={(e) => setEditingLesson({ ...editingLesson, activity: e.target.value })}
                     rows={4}
-                    style={{ width: '100%', padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', fontSize: 14, resize: 'vertical' }}
+                    className="form-textarea"
                   />
                 </div>
+
+                {!editingLesson.id && (
+                  <div className="form-field">
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'rgba(255,255,255,0.8)', fontWeight: 700 }}>
+                      <input
+                        type="checkbox"
+                        checked={editingLesson.repeatWeekly || false}
+                        onChange={(e) => setEditingLesson({ ...editingLesson, repeatWeekly: e.target.checked })}
+                      />
+                      선택한 기간 동안 매주 수업으로 추가
+                    </label>
+                    {editingLesson.repeatWeekly && (
+                      <input
+                        type="date"
+                        value={editingLesson.repeatUntil || ''}
+                        onChange={(e) => setEditingLesson({ ...editingLesson, repeatUntil: e.target.value })}
+                        className="form-control"
+                      />
+                    )}
+                  </div>
+                )}
 
                 <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
                   <button
                     style={{ ...styles.btn, flex: 1 }}
                     onClick={() => {
-                      if (!editingLesson.subject) {
-                        alert('과목명은 필수입니다.');
+                      if (!editingLesson.subject || !editingLesson.date) {
+                        alert('과목명과 날짜는 필수입니다.');
                         return;
                       }
                       saveLesson(editingLesson);
