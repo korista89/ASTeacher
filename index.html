@@ -939,9 +939,19 @@
   </style>
 </head>
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <div style="display: flex; justify-content: center; align-items: center; min-height: 100vh; background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 50%, #0a0e27 100%); color: white; font-family: sans-serif;">
+      <div style="text-align: center;">
+        <h1 style="font-size: 36px; margin-bottom: 20px;">⏳ 로딩 중...</h1>
+        <p style="color: rgba(255,255,255,0.7);">시스템을 불러오고 있습니다.</p>
+      </div>
+    </div>
+  </div>
 <script type="text/babel">
+    console.log('🚀 Script started loading...');
+
     const { useEffect, useMemo, useRef, useState, useCallback } = React;
+    console.log('✓ React hooks imported');
 
     const LS_KEY = "adhd_pro_manager_v2_upgraded";
 
@@ -1728,9 +1738,22 @@
         </div>
       );
     }
-// 메인 App 컴포넌트
+
+    console.log('✓ All helper components defined');
+
+    // 메인 App 컴포넌트
     function App() {
-      const [state, setState] = useState(loadState);
+      console.log('🎯 App component rendering...');
+      const [state, setState] = useState(() => {
+        console.log('📦 Loading state from localStorage...');
+        const loadedState = loadState();
+        console.log('✓ State loaded:', {
+          tasks: loadedState.tasks?.length,
+          lessons: loadedState.lessons?.length,
+          points: loadedState.points
+        });
+        return loadedState;
+      });
       const [view, setView] = useState('dashboard');
       const [tick, setTick] = useState(0);
       const [editingLesson, setEditingLesson] = useState(null);
@@ -5570,8 +5593,63 @@
       );
     }
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
+    // Error boundary wrapper component
+    class ErrorBoundary extends React.Component {
+      constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+      }
+
+      static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+      }
+
+      componentDidCatch(error, errorInfo) {
+        console.error('React Error:', error, errorInfo);
+      }
+
+      render() {
+        if (this.state.hasError) {
+          return (
+            <div style={{ padding: 40, background: '#1a1f3a', color: 'white', minHeight: '100vh' }}>
+              <h1 style={{ color: '#ef4444' }}>⚠️ 오류가 발생했습니다</h1>
+              <p style={{ marginTop: 20, color: 'rgba(255,255,255,0.8)' }}>
+                {this.state.error?.toString()}
+              </p>
+              <button
+                onClick={() => { localStorage.clear(); window.location.reload(); }}
+                style={{ marginTop: 20, padding: '12px 24px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 16 }}
+              >
+                🔄 데이터 초기화 후 새로고침
+              </button>
+            </div>
+          );
+        }
+        return this.props.children;
+      }
+    }
+
+    // Render with error handling
+    try {
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
+      );
+    } catch (error) {
+      console.error('Failed to render:', error);
+      document.getElementById('root').innerHTML = `
+        <div style="padding: 40px; background: #1a1f3a; color: white; min-height: 100vh;">
+          <h1 style="color: #ef4444;">❌ 초기화 오류</h1>
+          <p style="margin-top: 20px;">${error.toString()}</p>
+          <button onclick="localStorage.clear(); window.location.reload();"
+            style="margin-top: 20px; padding: 12px 24px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px;">
+            🔄 데이터 초기화 후 새로고침
+          </button>
+        </div>
+      `;
+    }
   </script>
 </body>
 </html>
