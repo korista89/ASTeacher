@@ -972,6 +972,19 @@
 
     function clamp01(x) { return Math.min(1, Math.max(0, x)); }
 
+    function formatDateTime(timestamp) {
+      if (!timestamp) return '';
+      const date = new Date(timestamp);
+      return date.toLocaleString('ko-KR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+    }
+
     function startOfWeek(date) {
       const d = new Date(date);
       const day = d.getDay();
@@ -1001,6 +1014,26 @@
       if (day === 0) return '일';
       if (day === 6) return '토';
       return DAYS_OF_WEEK[day - 1];
+    }
+
+    // 주간 이름 가져오기 (목요일 기준 0월 0주차)
+    function getWeekLabel(weekStartDate) {
+      // 해당 주의 목요일 찾기 (월요일 기준 시작이므로 +3일)
+      const thursday = addDays(weekStartDate, 3);
+      const month = thursday.getMonth() + 1; // 0-based이므로 +1
+
+      // 그 달의 첫 번째 목요일 찾기
+      const firstDayOfMonth = new Date(thursday.getFullYear(), thursday.getMonth(), 1);
+      let firstThursday = new Date(firstDayOfMonth);
+      const dayOfWeek = firstDayOfMonth.getDay();
+      // 목요일은 4 (일=0, 월=1, ... 목=4)
+      const daysUntilThursday = (4 - dayOfWeek + 7) % 7;
+      firstThursday.setDate(1 + daysUntilThursday);
+
+      // 주차 계산
+      const weekNumber = Math.floor((thursday.getDate() - firstThursday.getDate()) / 7) + 1;
+
+      return `${month}월 ${weekNumber}주차`;
     }
 
     // 알림 권한 요청
@@ -1070,6 +1103,47 @@
     const DAYS_OF_WEEK = ['월', '화', '수', '목', '금'];
     const PERIODS = ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시', '7교시'];
 
+    // 과목 목록 및 색상
+    const SUBJECTS = {
+      '의사소통': { color: '#ef4444', label: '의사소통' },
+      '자립생활': { color: '#f97316', label: '자립생활' },
+      '신체활동': { color: '#f59e0b', label: '신체활동' },
+      '여가활동': { color: '#eab308', label: '여가활동' },
+      '자율': { color: '#84cc16', label: '자율' },
+      '동아리': { color: '#22c55e', label: '동아리' },
+      '봉사': { color: '#10b981', label: '봉사' },
+      '진로': { color: '#14b8a6', label: '진로' },
+      '바른생활': { color: '#06b6d4', label: '바른생활' },
+      '슬기로운생활': { color: '#0ea5e9', label: '슬기로운생활' },
+      '즐거운 생활': { color: '#3b82f6', label: '즐거운 생활' },
+      '실과': { color: '#6366f1', label: '실과' },
+      '국어': { color: '#8b5cf6', label: '국어' },
+      '사회': { color: '#a855f7', label: '사회' },
+      '수학': { color: '#c026d3', label: '수학' },
+      '과학': { color: '#d946ef', label: '과학' },
+      '진직': { color: '#e879f9', label: '진직' },
+      '체육': { color: '#ec4899', label: '체육' },
+      '음악': { color: '#f43f5e', label: '음악' },
+      '미술': { color: '#fb7185', label: '미술' },
+      '재활': { color: '#f87171', label: '재활' },
+      '여가': { color: '#fbbf24', label: '여가' },
+      '정보': { color: '#facc15', label: '정보' },
+      '생활영어': { color: '#a3e635', label: '생활영어' },
+      '보건': { color: '#4ade80', label: '보건' },
+      '스포츠': { color: '#34d399', label: '스포츠' },
+      '주제선택': { color: '#2dd4bf', label: '주제선택' },
+      '진로탐색': { color: '#22d3ee', label: '진로탐색' },
+      '예술체육': { color: '#38bdf8', label: '예술체육' },
+      '직업': { color: '#60a5fa', label: '직업' },
+      '기초작업': { color: '#818cf8', label: '기초작업' },
+      '직업준비': { color: '#a78bfa', label: '직업준비' },
+      '사무지원': { color: '#c4b5fd', label: '사무지원' },
+      '외식서비스': { color: '#d8b4fe', label: '외식서비스' },
+      '대인서비스': { color: '#e9d5ff', label: '대인서비스' },
+      '정보처리': { color: '#f0abfc', label: '정보처리' },
+      '방과후': { color: '#f9a8d4', label: '방과후' },
+    };
+
     const EVAL_SCORES = {
       0: { label: '결석', color: '#6b7280', description: '수업 불참' },
       1: { label: '미참여', color: '#ef4444', description: '수업 참여하지 않음' },
@@ -1125,12 +1199,15 @@
         searchText: '',
       },
       completedSprints: [],
+      focusHistory: [], // 집중 세션 이력 (저장/수정/삭제 가능)
+      scheduleHistory: [], // 일정 이력 (저장/수정/삭제 가능)
       behaviorLog: [],
       lessons: [], // 수업 데이터
       studentEvals: {}, // 학생별 평가 데이터 { lessonId: { studentId: score } }
       collapsedItems: {},
       alertedSchedules: {},
       recentSearches: [], // 최근 검색 기록 (최대 10개)
+      taskSortBy: 'deadline', // 과제 정렬 기준 (deadline, priority, name, createdAt)
     };
 
     function loadState() {
@@ -1148,12 +1225,15 @@
           schedules: Array.isArray(parsed.schedules) ? parsed.schedules : DEFAULT_STATE.schedules,
           filters: { ...DEFAULT_STATE.filters, ...(parsed.filters || {}) },
           completedSprints: Array.isArray(parsed.completedSprints) ? parsed.completedSprints : [],
+          focusHistory: Array.isArray(parsed.focusHistory) ? parsed.focusHistory : [],
+          scheduleHistory: Array.isArray(parsed.scheduleHistory) ? parsed.scheduleHistory : [],
           behaviorLog: Array.isArray(parsed.behaviorLog) ? parsed.behaviorLog : [],
           lessons: Array.isArray(parsed.lessons) ? parsed.lessons : [],
           studentEvals: parsed.studentEvals || {},
           collapsedItems: parsed.collapsedItems || {},
           alertedSchedules: parsed.alertedSchedules || {},
           recentSearches: Array.isArray(parsed.recentSearches) ? parsed.recentSearches : [],
+          taskSortBy: parsed.taskSortBy || DEFAULT_STATE.taskSortBy,
         };
       } catch {
         return DEFAULT_STATE;
@@ -1491,8 +1571,8 @@
 
       for (let day = 1; day <= daysInMonth; day++) {
         const dayTasks = tasks.filter(t => {
-          if (!t.deadlineTs) return false;
-          const d = new Date(t.deadlineTs);
+          if (!t.deadline) return false;
+          const d = new Date(t.deadline);
           return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day;
         });
 
@@ -1661,7 +1741,7 @@
       const [showSearch, setShowSearch] = useState(false);
       const [editingBehavior, setEditingBehavior] = useState(null);
       const [showMobileMenu, setShowMobileMenu] = useState(false);
-      const [behaviorFilter, setBehaviorFilter] = useState({ dateRange: 30, student: 'ALL', behaviorType: 'ALL' });
+      const [behaviorFilter, setBehaviorFilter] = useState({ dateRange: 30, student: 'ALL', behaviorType: 'ALL', chartType: 'daily' });
       const [reportType, setReportType] = useState('weekly');
       const [lessonWeekStart, setLessonWeekStart] = useState(() => startOfWeek(new Date()));
       const [behaviorWeekStart, setBehaviorWeekStart] = useState(() => startOfWeek(new Date()));
@@ -1677,9 +1757,10 @@
         durationMin: 25,
         note: '',
       });
+      const [editingFocusHistory, setEditingFocusHistory] = useState(null);
+      const [editingScheduleHistory, setEditingScheduleHistory] = useState(null);
       const searchInputRef = useRef(null);
       const lineChartRef = useRef(null);
-      const barChartRef = useRef(null);
 
       useEffect(() => {
         saveState(state);
@@ -1784,55 +1865,229 @@
 
       useEffect(() => {
         if (view !== 'behaviorAnalytics') return;
-        const lineCanvas = document.getElementById('behaviorLineChart');
-        const barCanvas = document.getElementById('behaviorBarChart');
-        if (!lineCanvas || !barCanvas || !window.Chart) return;
+        const canvas = document.getElementById('behaviorLineChart');
+        if (!canvas || !window.Chart) return;
 
-        if (!filteredBehaviorLog.length) {
+        if (!state.behaviorLog.length) {
           if (lineChartRef.current) {
             lineChartRef.current.destroy();
             lineChartRef.current = null;
           }
-          if (barChartRef.current) {
-            barChartRef.current.destroy();
-            barChartRef.current = null;
-          }
           return;
         }
 
-        const now = Date.now();
-        const dailyData = {};
-        for (let i = 0; i < behaviorFilter.dateRange; i++) {
-          const date = new Date(now - i * 24 * 60 * 60 * 1000);
-          const dateStr = date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
-          dailyData[dateStr] = 0;
-        }
+        // Define student list and colors
+        const students = ['학생1', '학생2', '학생3', '학생4', '학생5', '학생6', '학생7'];
+        const studentColors = {
+          '학생1': '#ef4444',
+          '학생2': '#f59e0b',
+          '학생3': '#eab308',
+          '학생4': '#22c55e',
+          '학생5': '#3b82f6',
+          '학생6': '#8b5cf6',
+          '학생7': '#ec4899',
+          '학급 합계': '#ffffff'
+        };
 
-        filteredBehaviorLog.forEach(b => {
-          const dateStr = new Date(b.timestamp).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
-          if (dailyData[dateStr] !== undefined) {
-            dailyData[dateStr]++;
-          }
+        // Filter data by date range, student, and behavior type
+        const now = Date.now();
+        const rangeMs = behaviorFilter.dateRange * 24 * 60 * 60 * 1000;
+        const filteredData = state.behaviorLog.filter(b => {
+          if (b.timestamp < now - rangeMs) return false;
+          if (behaviorFilter.student !== 'ALL' && b.studentName !== behaviorFilter.student) return false;
+          if (behaviorFilter.behaviorType !== 'ALL' && b.behaviorType !== behaviorFilter.behaviorType) return false;
+          return true;
         });
 
-        const labels = Object.keys(dailyData).reverse();
-        const data = Object.values(dailyData).reverse();
+        let labels = [];
+        let datasets = [];
 
+        // Process data based on chart type
+        if (behaviorFilter.chartType === 'daily') {
+          // Daily frequency
+          const dailyData = {};
+          for (let i = 0; i < behaviorFilter.dateRange; i++) {
+            const date = new Date(now - i * 24 * 60 * 60 * 1000);
+            const dateStr = date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+            dailyData[dateStr] = {};
+            students.forEach(s => dailyData[dateStr][s] = 0);
+            dailyData[dateStr]['학급 합계'] = 0;
+          }
+
+          filteredData.forEach(b => {
+            const dateStr = new Date(b.timestamp).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+            if (dailyData[dateStr]) {
+              if (students.includes(b.studentName)) {
+                dailyData[dateStr][b.studentName]++;
+              }
+              dailyData[dateStr]['학급 합계']++;
+            }
+          });
+
+          labels = Object.keys(dailyData).reverse();
+          students.forEach(student => {
+            datasets.push({
+              label: student,
+              data: labels.map(label => dailyData[label][student]),
+              borderColor: studentColors[student],
+              backgroundColor: 'transparent',
+              tension: 0.4,
+              borderWidth: 2,
+            });
+          });
+          datasets.push({
+            label: '학급 합계',
+            data: labels.map(label => dailyData[label]['학급 합계']),
+            borderColor: studentColors['학급 합계'],
+            backgroundColor: 'transparent',
+            tension: 0.4,
+            borderWidth: 3,
+          });
+
+        } else if (behaviorFilter.chartType === 'weekly') {
+          // Weekly frequency
+          const weeks = Math.ceil(behaviorFilter.dateRange / 7);
+          const weeklyData = {};
+
+          for (let i = 0; i < weeks; i++) {
+            const weekEnd = new Date(now - i * 7 * 24 * 60 * 60 * 1000);
+            const weekStart = new Date(weekEnd - 6 * 24 * 60 * 60 * 1000);
+            const weekLabel = `${weekStart.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}`;
+            weeklyData[weekLabel] = { start: weekStart.getTime(), end: weekEnd.getTime() };
+            students.forEach(s => weeklyData[weekLabel][s] = 0);
+            weeklyData[weekLabel]['학급 합계'] = 0;
+          }
+
+          filteredData.forEach(b => {
+            Object.keys(weeklyData).forEach(weekLabel => {
+              const week = weeklyData[weekLabel];
+              if (b.timestamp >= week.start && b.timestamp <= week.end) {
+                if (students.includes(b.studentName)) {
+                  weeklyData[weekLabel][b.studentName]++;
+                }
+                weeklyData[weekLabel]['학급 합계']++;
+              }
+            });
+          });
+
+          labels = Object.keys(weeklyData).reverse();
+          students.forEach(student => {
+            datasets.push({
+              label: student,
+              data: labels.map(label => weeklyData[label][student]),
+              borderColor: studentColors[student],
+              backgroundColor: 'transparent',
+              tension: 0.4,
+              borderWidth: 2,
+            });
+          });
+          datasets.push({
+            label: '학급 합계',
+            data: labels.map(label => weeklyData[label]['학급 합계']),
+            borderColor: studentColors['학급 합계'],
+            backgroundColor: 'transparent',
+            tension: 0.4,
+            borderWidth: 3,
+          });
+
+        } else if (behaviorFilter.chartType === 'dayOfWeek') {
+          // Day of week distribution
+          const daysOfWeek = ['일', '월', '화', '수', '목', '금', '토'];
+          const dayData = {};
+          daysOfWeek.forEach(day => {
+            dayData[day] = {};
+            students.forEach(s => dayData[day][s] = 0);
+            dayData[day]['학급 합계'] = 0;
+          });
+
+          filteredData.forEach(b => {
+            const day = daysOfWeek[new Date(b.timestamp).getDay()];
+            if (students.includes(b.studentName)) {
+              dayData[day][b.studentName]++;
+            }
+            dayData[day]['학급 합계']++;
+          });
+
+          labels = daysOfWeek;
+          students.forEach(student => {
+            datasets.push({
+              label: student,
+              data: labels.map(label => dayData[label][student]),
+              borderColor: studentColors[student],
+              backgroundColor: 'transparent',
+              tension: 0.4,
+              borderWidth: 2,
+            });
+          });
+          datasets.push({
+            label: '학급 합계',
+            data: labels.map(label => dayData[label]['학급 합계']),
+            borderColor: studentColors['학급 합계'],
+            backgroundColor: 'transparent',
+            tension: 0.4,
+            borderWidth: 3,
+          });
+
+        } else if (behaviorFilter.chartType === 'period') {
+          // Period distribution (교시별)
+          const periods = ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시', '7교시', '8교시'];
+          const periodData = {};
+          periods.forEach(period => {
+            periodData[period] = {};
+            students.forEach(s => periodData[period][s] = 0);
+            periodData[period]['학급 합계'] = 0;
+          });
+
+          filteredData.forEach(b => {
+            const hour = new Date(b.timestamp).getHours();
+            let period = null;
+            if (hour >= 9 && hour < 10) period = '1교시';
+            else if (hour >= 10 && hour < 11) period = '2교시';
+            else if (hour >= 11 && hour < 12) period = '3교시';
+            else if (hour >= 12 && hour < 13) period = '4교시';
+            else if (hour >= 13 && hour < 14) period = '5교시';
+            else if (hour >= 14 && hour < 15) period = '6교시';
+            else if (hour >= 15 && hour < 16) period = '7교시';
+            else if (hour >= 16 && hour < 17) period = '8교시';
+
+            if (period && periodData[period]) {
+              if (students.includes(b.studentName)) {
+                periodData[period][b.studentName]++;
+              }
+              periodData[period]['학급 합계']++;
+            }
+          });
+
+          labels = periods;
+          students.forEach(student => {
+            datasets.push({
+              label: student,
+              data: labels.map(label => periodData[label][student]),
+              borderColor: studentColors[student],
+              backgroundColor: 'transparent',
+              tension: 0.4,
+              borderWidth: 2,
+            });
+          });
+          datasets.push({
+            label: '학급 합계',
+            data: labels.map(label => periodData[label]['학급 합계']),
+            borderColor: studentColors['학급 합계'],
+            backgroundColor: 'transparent',
+            tension: 0.4,
+            borderWidth: 3,
+          });
+        }
+
+        // Create or update chart
         if (lineChartRef.current) {
           lineChartRef.current.destroy();
         }
-        lineChartRef.current = new Chart(lineCanvas, {
+        lineChartRef.current = new Chart(canvas, {
           type: 'line',
           data: {
             labels: labels,
-            datasets: [{
-              label: '행동 발생 횟수',
-              data: data,
-              borderColor: '#3b82f6',
-              backgroundColor: 'rgba(59, 130, 246, 0.1)',
-              tension: 0.4,
-              fill: true,
-            }]
+            datasets: datasets
           },
           options: {
             responsive: true,
@@ -1841,58 +2096,31 @@
             interaction: { mode: 'nearest', intersect: false },
             elements: {
               point: {
-                radius: 4,
-                hoverRadius: 6,
-                hitRadius: 12,
+                radius: 3,
+                hoverRadius: 5,
+                hitRadius: 10,
               }
             },
             plugins: {
-              legend: { labels: { color: 'white' } }
+              legend: {
+                labels: { color: 'white', font: { size: 11 } },
+                position: 'top',
+              }
             },
             scales: {
-              y: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } },
-              x: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } }
+              y: {
+                ticks: { color: 'white', stepSize: 1 },
+                grid: { color: 'rgba(255,255,255,0.1)' },
+                beginAtZero: true
+              },
+              x: {
+                ticks: { color: 'white', font: { size: 10 } },
+                grid: { color: 'rgba(255,255,255,0.1)' }
+              }
             }
           }
         });
-
-        const typeData = {};
-        filteredBehaviorLog.forEach(b => {
-          const type = BEHAVIOR_TYPES[b.behaviorType]?.label || b.behaviorType;
-          typeData[type] = (typeData[type] || 0) + 1;
-        });
-
-        if (barChartRef.current) {
-          barChartRef.current.destroy();
-        }
-        barChartRef.current = new Chart(barCanvas, {
-          type: 'bar',
-          data: {
-            labels: Object.keys(typeData),
-            datasets: [{
-              label: '발생 횟수',
-              data: Object.values(typeData),
-              backgroundColor: Object.keys(typeData).map(type => {
-                const behaviorType = Object.values(BEHAVIOR_TYPES).find(t => t.label === type);
-                return behaviorType ? behaviorType.color : '#6b7280';
-              }),
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: { duration: 300 },
-            interaction: { mode: 'nearest', intersect: false },
-            plugins: {
-              legend: { display: false }
-            },
-            scales: {
-              y: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } },
-              x: { ticks: { color: 'white' }, grid: { color: 'rgba(255,255,255,0.1)' } }
-            }
-          }
-        });
-      }, [view, filteredBehaviorLog, behaviorFilter.dateRange]);
+      }, [view, state.behaviorLog, behaviorFilter]);
 
       // 검색 기록 저장
       const saveSearchHistory = (query) => {
@@ -1964,6 +2192,9 @@
           steps: [],
           tags: [],
           createdAt: nowMs(),
+          deadline: null, // 마감일시
+          description: '', // 설명
+          assignee: '', // 담당자
         };
         setState(p => ({ ...p, tasks: [...p.tasks, newTask] }));
       };
@@ -2001,7 +2232,7 @@
       const addStep = (taskId) => {
         const stepText = prompt('세부 단계를 입력하세요:');
         if (!stepText) return;
-        
+
         setState(p => ({
           ...p,
           tasks: p.tasks.map(t => {
@@ -2012,6 +2243,92 @@
             };
           })
         }));
+      };
+
+      // 세부 단계 수정
+      const editStep = (taskId, stepId) => {
+        const task = state.tasks.find(t => t.id === taskId);
+        if (!task) return;
+        const step = task.steps.find(s => s.id === stepId);
+        if (!step) return;
+
+        const newText = prompt('세부 단계 수정:', step.text);
+        if (!newText || newText === step.text) return;
+
+        setState(p => ({
+          ...p,
+          tasks: p.tasks.map(t => {
+            if (t.id !== taskId) return t;
+            return {
+              ...t,
+              steps: t.steps.map(s => s.id === stepId ? { ...s, text: newText } : s)
+            };
+          })
+        }));
+      };
+
+      // 세부 단계 삭제
+      const deleteStep = (taskId, stepId) => {
+        if (!confirm('이 단계를 삭제하시겠습니까?')) return;
+
+        setState(p => ({
+          ...p,
+          tasks: p.tasks.map(t => {
+            if (t.id !== taskId) return t;
+            return {
+              ...t,
+              steps: t.steps.filter(s => s.id !== stepId)
+            };
+          })
+        }));
+      };
+
+      // 세부 단계 위로 이동
+      const moveStepUp = (taskId, stepId) => {
+        setState(p => ({
+          ...p,
+          tasks: p.tasks.map(t => {
+            if (t.id !== taskId) return t;
+            const idx = t.steps.findIndex(s => s.id === stepId);
+            if (idx <= 0) return t;
+            const newSteps = [...t.steps];
+            [newSteps[idx - 1], newSteps[idx]] = [newSteps[idx], newSteps[idx - 1]];
+            return { ...t, steps: newSteps };
+          })
+        }));
+      };
+
+      // 세부 단계 아래로 이동
+      const moveStepDown = (taskId, stepId) => {
+        setState(p => ({
+          ...p,
+          tasks: p.tasks.map(t => {
+            if (t.id !== taskId) return t;
+            const idx = t.steps.findIndex(s => s.id === stepId);
+            if (idx < 0 || idx >= t.steps.length - 1) return t;
+            const newSteps = [...t.steps];
+            [newSteps[idx], newSteps[idx + 1]] = [newSteps[idx + 1], newSteps[idx]];
+            return { ...t, steps: newSteps };
+          })
+        }));
+      };
+
+      // 과제 완료 시 포인트 지급 (마감일 전 완료 시 100점)
+      const completeTask = (taskId) => {
+        const task = state.tasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        const autoProgress = calculateAutoProgress(task);
+        if (autoProgress === 100) {
+          const isBeforeDeadline = task.deadline && nowMs() < task.deadline;
+          if (isBeforeDeadline) {
+            setState(p => ({
+              ...p,
+              points: p.points + 100,
+            }));
+            alert('🎉 마감일 전 과제 완료! +100점 획득!');
+          }
+        }
       };
 
       // 수업 추가/수정
@@ -2084,13 +2401,14 @@
         }));
       };
 
-      // 수업 CSV 내보내기
-      const exportLessonsCSV = () => {
-        const headers = ['ID', '날짜', '요일', '교시', '과목', '제재', '목표', '활동'];
+      // 수업 및 평가 통합 CSV 내보내기
+      const exportLessonsAndEvalsCSV = () => {
+        // 수업 정보와 학생별 평가를 하나의 CSV로 통합
+        const headers = ['ID', '날짜', '요일', '교시', '과목', '제재', '목표', '활동', '학생1', '학생2', '학생3', '학생4', '학생5', '학생6', '학생7'];
         const rows = [headers];
-        
+
         state.lessons.forEach(lesson => {
-          rows.push([
+          const row = [
             lesson.id,
             lesson.date ? new Date(lesson.date).toLocaleDateString('ko-KR') : '',
             lesson.dayOfWeek || '',
@@ -2099,32 +2417,20 @@
             lesson.topic || '',
             lesson.goal || '',
             lesson.activity || ''
-          ]);
+          ];
+
+          // 학생별 평가 점수 추가 (학생1~학생7)
+          for (let i = 1; i <= 7; i++) {
+            const studentId = `학생${i}`;
+            const evalKey = `${lesson.id}-${studentId}`;
+            const evalData = state.studentEvals[evalKey];
+            row.push(evalData?.score !== undefined ? evalData.score : '');
+          }
+
+          rows.push(row);
         });
 
-        exportToCSV(rows, `수업관리_${new Date().toISOString().slice(0,10)}.csv`);
-      };
-
-      // 평가 CSV 내보내기
-      const exportEvalsCSV = () => {
-        const headers = ['수업ID', '날짜', '과목', '학생', '평가점수', '메모'];
-        const rows = [headers];
-        
-        Object.entries(state.studentEvals).forEach(([key, evalData]) => {
-          const [lessonId, studentId] = key.split('-');
-          const lesson = state.lessons.find(l => l.id === lessonId);
-          
-          rows.push([
-            lessonId,
-            lesson?.date ? new Date(lesson.date).toLocaleDateString('ko-KR') : '',
-            lesson?.subject || '',
-            studentId,
-            evalData.score,
-            evalData.memo || ''
-          ]);
-        });
-
-        exportToCSV(rows, `학생평가_${new Date().toISOString().slice(0,10)}.csv`);
+        exportToCSV(rows, `수업및평가_${new Date().toISOString().slice(0,10)}.csv`);
       };
 
       // CSV 가져오기
@@ -2452,19 +2758,48 @@
       };
 
       const filteredTasks = useMemo(() => {
-        return state.tasks.filter(t => {
+        const filtered = state.tasks.filter(t => {
           if (state.filters.category !== 'ALL' && t.category !== state.filters.category) return false;
           if (state.filters.priority !== 'ALL' && t.priority !== state.filters.priority) return false;
           if (state.filters.searchText) {
             const search = state.filters.searchText.toLowerCase();
-            if (!t.title.toLowerCase().includes(search) && 
+            if (!t.title.toLowerCase().includes(search) &&
                 !(t.tags || []).some(tag => tag.toLowerCase().includes(search))) {
               return false;
             }
           }
           return true;
         });
-      }, [state.tasks, state.filters]);
+
+        // 정렬
+        const sorted = [...filtered];
+        switch (state.taskSortBy) {
+          case 'deadline':
+            sorted.sort((a, b) => {
+              if (!a.deadline && !b.deadline) return 0;
+              if (!a.deadline) return 1;
+              if (!b.deadline) return -1;
+              return a.deadline - b.deadline;
+            });
+            break;
+          case 'priority':
+            sorted.sort((a, b) => {
+              const aPri = PRIORITIES[a.priority]?.value || 0;
+              const bPri = PRIORITIES[b.priority]?.value || 0;
+              return bPri - aPri;
+            });
+            break;
+          case 'name':
+            sorted.sort((a, b) => a.title.localeCompare(b.title));
+            break;
+          case 'createdAt':
+            sorted.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            break;
+          default:
+            break;
+        }
+        return sorted;
+      }, [state.tasks, state.filters, state.taskSortBy]);
 
       const stats = useMemo(() => {
         const total = state.tasks.length;
@@ -2532,8 +2867,21 @@
       useEffect(() => {
         if (!state.focus.running || state.focus.paused) return;
         if (focusStatus.remainingMs > 0) return;
+
+        // Save focus session to history and award points
+        const focusRecord = {
+          id: Date.now(),
+          startTime: state.focus.startedTs,
+          duration: state.focus.durationSec,
+          completedAt: nowMs(),
+          note: state.focus.note || '',
+          taskId: state.focus.taskId || null,
+        };
+
         setState(p => ({
           ...p,
+          points: p.points + 100,
+          focusHistory: [focusRecord, ...(p.focusHistory || [])],
           focus: {
             ...p.focus,
             running: false,
@@ -2543,7 +2891,7 @@
             elapsedBeforePause: 0,
           },
         }));
-        setShowAlert({ title: '✅ 집중 종료', message: '집중 시간이 완료되었습니다!' });
+        setShowAlert({ title: '✅ 집중 종료', message: '집중 시간이 완료되었습니다! 🎉 +100 포인트' });
         setTimeout(() => setShowAlert(null), 4000);
       }, [focusStatus.remainingMs, state.focus.running, state.focus.paused]);
 
@@ -2601,6 +2949,45 @@
         }));
       };
 
+      const editFocusHistory = (id) => {
+        const record = state.focusHistory.find(r => r.id === id);
+        if (record) {
+          setEditingFocusHistory({
+            ...record,
+            durationMin: Math.round(record.duration / 60),
+          });
+        }
+      };
+
+      const saveFocusHistory = () => {
+        if (!editingFocusHistory) return;
+        setState(p => ({
+          ...p,
+          focusHistory: p.focusHistory.map(r =>
+            r.id === editingFocusHistory.id
+              ? {
+                  ...r,
+                  note: editingFocusHistory.note,
+                  duration: editingFocusHistory.durationMin * 60,
+                }
+              : r
+          ),
+        }));
+        setEditingFocusHistory(null);
+        setShowAlert({ title: '✅ 수정 완료', message: '집중 기록이 수정되었습니다.' });
+        setTimeout(() => setShowAlert(null), 3000);
+      };
+
+      const deleteFocusHistory = (id) => {
+        if (!confirm('정말 삭제하시겠습니까?')) return;
+        setState(p => ({
+          ...p,
+          focusHistory: p.focusHistory.filter(r => r.id !== id),
+        }));
+        setShowAlert({ title: '🗑️ 삭제 완료', message: '집중 기록이 삭제되었습니다.' });
+        setTimeout(() => setShowAlert(null), 3000);
+      };
+
       const addSchedule = () => {
         if (!scheduleDraft.name || !scheduleDraft.arrivalTs) {
           alert('일정 이름과 도착 시간을 입력해주세요.');
@@ -2634,6 +3021,94 @@
           ...p,
           schedules: p.schedules.filter(s => s.id !== scheduleId),
         }));
+      };
+
+      const completeScheduleArrival = (schedule) => {
+        const now = nowMs();
+        const departTime = schedule.arrivalTs - (schedule.departBeforeMin * 60 * 1000);
+        const onTime = now <= schedule.arrivalTs;
+        const points = onTime ? 100 : 0;
+
+        const historyRecord = {
+          id: Date.now(),
+          scheduleId: schedule.id,
+          scheduleName: schedule.name,
+          arrivalTime: now,
+          plannedArrivalTime: schedule.arrivalTs,
+          onTime: onTime,
+          points: points,
+          location: schedule.location || '',
+        };
+
+        setState(p => ({
+          ...p,
+          points: p.points + points,
+          scheduleHistory: [historyRecord, ...(p.scheduleHistory || [])],
+        }));
+
+        if (onTime) {
+          setShowAlert({ title: '✅ 정시 도착!', message: `${schedule.name}에 정시 도착했습니다! 🎉 +100 포인트` });
+        } else {
+          const lateMinutes = Math.round((now - schedule.arrivalTs) / 60000);
+          setShowAlert({ title: '⏰ 늦은 도착', message: `${schedule.name}에 ${lateMinutes}분 늦게 도착했습니다.` });
+        }
+        setTimeout(() => setShowAlert(null), 4000);
+      };
+
+      const editScheduleHistory = (id) => {
+        const record = state.scheduleHistory.find(r => r.id === id);
+        if (record) {
+          setEditingScheduleHistory({
+            ...record,
+            arrivalTimeLocal: toLocalDatetimeValue(record.arrivalTime),
+          });
+        }
+      };
+
+      const saveScheduleHistory = () => {
+        if (!editingScheduleHistory) return;
+        const newArrivalTime = fromLocalDatetimeValue(editingScheduleHistory.arrivalTimeLocal);
+        if (!newArrivalTime) {
+          alert('올바른 도착 시간을 입력해주세요.');
+          return;
+        }
+
+        const onTime = newArrivalTime <= editingScheduleHistory.plannedArrivalTime;
+        const oldPoints = editingScheduleHistory.points;
+        const newPoints = onTime ? 100 : 0;
+        const pointsDiff = newPoints - oldPoints;
+
+        setState(p => ({
+          ...p,
+          points: p.points + pointsDiff,
+          scheduleHistory: p.scheduleHistory.map(r =>
+            r.id === editingScheduleHistory.id
+              ? {
+                  ...r,
+                  arrivalTime: newArrivalTime,
+                  onTime: onTime,
+                  points: newPoints,
+                }
+              : r
+          ),
+        }));
+        setEditingScheduleHistory(null);
+        setShowAlert({ title: '✅ 수정 완료', message: '일정 기록이 수정되었습니다.' });
+        setTimeout(() => setShowAlert(null), 3000);
+      };
+
+      const deleteScheduleHistory = (id) => {
+        if (!confirm('정말 삭제하시겠습니까?')) return;
+        const record = state.scheduleHistory.find(r => r.id === id);
+        if (record) {
+          setState(p => ({
+            ...p,
+            points: Math.max(0, p.points - record.points),
+            scheduleHistory: p.scheduleHistory.filter(r => r.id !== id),
+          }));
+          setShowAlert({ title: '🗑️ 삭제 완료', message: '일정 기록이 삭제되었습니다.' });
+          setTimeout(() => setShowAlert(null), 3000);
+        }
       };
 
       return (
@@ -2732,7 +3207,6 @@
                   { key: 'dashboard', icon: '📊', label: '대시보드' },
                   { key: 'tasks', icon: '✅', label: '과제' },
                   { key: 'teaching', icon: '👨‍🏫', label: '수업관리' },
-                  { key: 'behavior', icon: '🎯', label: 'PBS 행동지원' },
                   { key: 'behaviorAnalytics', icon: '📈', label: '행동 그래프' },
                   { key: 'focus', icon: '⏱️', label: '집중' },
                   { key: 'schedule', icon: '🚗', label: '일정' },
@@ -2763,7 +3237,6 @@
               { key: 'dashboard', icon: '📊', label: '대시보드' },
               { key: 'tasks', icon: '✅', label: '과제' },
               { key: 'teaching', icon: '👨‍🏫', label: '수업관리' },
-              { key: 'behavior', icon: '🎯', label: 'PBS 행동지원' },
               { key: 'behaviorAnalytics', icon: '📈', label: '행동 그래프' },
               { key: 'focus', icon: '⏱️', label: '집중' },
               { key: 'schedule', icon: '🚗', label: '일정' },
@@ -2799,7 +3272,7 @@
               {[
                 { key: 'dashboard', icon: '📊', label: '홈' },
                 { key: 'tasks', icon: '✅', label: '과제' },
-                { key: 'behavior', icon: '🎯', label: '행동' },
+                { key: 'teaching', icon: '👨‍🏫', label: '수업' },
                 { key: 'schedule', icon: '🚗', label: '일정' },
               ].map(item => (
                 <button
@@ -2883,16 +3356,33 @@
           {/* 과제 관리 (접기/펼치기 + 자동 진행률) */}
           {view === 'tasks' && (
             <div style={styles.card} className="animate-in">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
                 <h2 style={styles.h2} className="section-title">✅ 과제 관리</h2>
-                <button style={styles.btn} onClick={addTask}>
-                  ➕ 새 과제 추가
-                </button>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <select
+                    value={state.taskSortBy}
+                    onChange={(e) => setState(p => ({ ...p, taskSortBy: e.target.value }))}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: 8,
+                      background: 'rgba(255,255,255,0.1)',
+                      color: 'white',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <option value="deadline">마감일순</option>
+                    <option value="priority">우선순위순</option>
+                    <option value="name">이름순</option>
+                    <option value="createdAt">최신순</option>
+                  </select>
+                  <button style={styles.btn} onClick={addTask}>
+                    ➕ 새 과제 추가
+                  </button>
+                </div>
               </div>
-
-              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, marginBottom: 16, padding: 12, background: 'rgba(16, 185, 129, 0.1)', borderRadius: 8, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                💡 <strong>자동 진행률:</strong> 세부 단계 완료율이 자동으로 반영됩니다!
-              </p>
 
               {filteredTasks.length === 0 && (
                 <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,0.5)' }}>
@@ -2927,7 +3417,7 @@
                             style={{ fontSize: 18, fontWeight: 700 }}
                           />
                           <span className="auto-progress-badge">
-                            🤖 자동: {autoProgress}%
+                            {autoProgress}%
                           </span>
                         </div>
                       </div>
@@ -3015,41 +3505,200 @@
                         </select>
                       </div>
 
+                      {/* 새 필드: 마감일시, 담당자, 설명 */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.7)', marginBottom: 6, fontWeight: 700 }}>
+                            마감일시
+                          </label>
+                          <input
+                            type="datetime-local"
+                            value={task.deadline ? toLocalDatetimeValue(task.deadline) : ''}
+                            onChange={(e) => updateTask(task.id, { deadline: fromLocalDatetimeValue(e.target.value) })}
+                            style={{
+                              width: '100%',
+                              padding: '8px 12px',
+                              borderRadius: 8,
+                              background: 'rgba(255,255,255,0.1)',
+                              color: 'white',
+                              border: '1px solid rgba(255,255,255,0.2)',
+                              fontSize: 13,
+                            }}
+                          />
+                          {task.deadline && nowMs() < task.deadline && (() => {
+                            const diff = task.deadline - nowMs();
+                            const days = Math.floor(diff / (24 * 60 * 60 * 1000));
+                            const hours = Math.floor((diff % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+                            const minutes = Math.floor((diff % (60 * 60 * 1000)) / (60 * 1000));
+                            return (
+                              <div style={{
+                                marginTop: 6,
+                                fontSize: 11,
+                                color: diff < 24 * 60 * 60 * 1000 ? '#ef4444' : '#10b981',
+                                fontWeight: 700,
+                              }}>
+                                남은 시간: {days}일 {hours}시간 {minutes}분
+                              </div>
+                            );
+                          })()}
+                          {task.deadline && nowMs() >= task.deadline && (
+                            <div style={{ marginTop: 6, fontSize: 11, color: '#ef4444', fontWeight: 700 }}>
+                              ⚠️ 마감 지남
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.7)', marginBottom: 6, fontWeight: 700 }}>
+                            담당자
+                          </label>
+                          <input
+                            type="text"
+                            value={task.assignee || ''}
+                            onChange={(e) => updateTask(task.id, { assignee: e.target.value })}
+                            placeholder="담당자 이름"
+                            style={{
+                              width: '100%',
+                              padding: '8px 12px',
+                              borderRadius: 8,
+                              background: 'rgba(255,255,255,0.1)',
+                              color: 'white',
+                              border: '1px solid rgba(255,255,255,0.2)',
+                              fontSize: 13,
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ marginBottom: 12 }}>
+                        <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.7)', marginBottom: 6, fontWeight: 700 }}>
+                          설명
+                        </label>
+                        <textarea
+                          value={task.description || ''}
+                          onChange={(e) => updateTask(task.id, { description: e.target.value })}
+                          placeholder="과제 설명을 입력하세요..."
+                          rows={3}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            borderRadius: 8,
+                            background: 'rgba(255,255,255,0.1)',
+                            color: 'white',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            fontSize: 13,
+                            resize: 'vertical',
+                            fontFamily: 'inherit',
+                          }}
+                        />
+                      </div>
+
                       {task.steps && task.steps.length > 0 && (
                         <div>
                           <div style={{ fontSize: 14, fontWeight: 700, color: 'white', marginBottom: 8 }}>
                             📝 세부 단계 ({task.steps.filter(s => s.done).length}/{task.steps.length})
                           </div>
-                          {task.steps.map(step => (
-                            <div 
-                              key={step.id} 
-                              style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                gap: 10, 
-                                marginBottom: 8, 
-                                padding: 12, 
-                                background: step.done ? 'rgba(16, 185, 129, 0.1)' : 'rgba(0,0,0,0.2)', 
+                          {task.steps.map((step, stepIdx) => (
+                            <div
+                              key={step.id}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                marginBottom: 8,
+                                padding: 10,
+                                background: step.done ? 'rgba(16, 185, 129, 0.1)' : 'rgba(0,0,0,0.2)',
                                 borderRadius: 8,
                                 border: step.done ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(255,255,255,0.1)',
                                 transition: 'all 0.3s',
                               }}
                             >
-                              <input 
-                                type="checkbox" 
-                                checked={step.done} 
-                                onChange={() => toggleStep(task.id, step.id)}
-                                style={{ width: 20, height: 20, cursor: 'pointer' }}
+                              <input
+                                type="checkbox"
+                                checked={step.done}
+                                onChange={() => {
+                                  toggleStep(task.id, step.id);
+                                  // 체크 후 완료 여부 확인 (약간의 지연을 두어 상태 업데이트 대기)
+                                  setTimeout(() => completeTask(task.id), 100);
+                                }}
+                                style={{ width: 10, height: 10, cursor: 'pointer', minWidth: 10, minHeight: 10 }}
                               />
-                              <span style={{ 
-                                flex: 1, 
-                                textDecoration: step.done ? 'line-through' : 'none', 
+                              <span style={{
+                                flex: 1,
+                                textDecoration: step.done ? 'line-through' : 'none',
                                 opacity: step.done ? 0.6 : 1,
-                                fontSize: 14,
+                                fontSize: 13,
                               }}>
                                 {step.text}
                               </span>
-                              {step.done && <span style={{ fontSize: 20 }}>✅</span>}
+                              <div style={{ display: 'flex', gap: 4 }}>
+                                <button
+                                  onClick={() => moveStepUp(task.id, step.id)}
+                                  disabled={stepIdx === 0}
+                                  style={{
+                                    padding: '4px 8px',
+                                    background: stepIdx === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(59, 130, 246, 0.2)',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    borderRadius: 6,
+                                    color: stepIdx === 0 ? 'rgba(255,255,255,0.3)' : 'white',
+                                    fontSize: 11,
+                                    cursor: stepIdx === 0 ? 'not-allowed' : 'pointer',
+                                    fontWeight: 700,
+                                  }}
+                                  title="위로 이동"
+                                >
+                                  ▲
+                                </button>
+                                <button
+                                  onClick={() => moveStepDown(task.id, step.id)}
+                                  disabled={stepIdx === task.steps.length - 1}
+                                  style={{
+                                    padding: '4px 8px',
+                                    background: stepIdx === task.steps.length - 1 ? 'rgba(255,255,255,0.05)' : 'rgba(59, 130, 246, 0.2)',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    borderRadius: 6,
+                                    color: stepIdx === task.steps.length - 1 ? 'rgba(255,255,255,0.3)' : 'white',
+                                    fontSize: 11,
+                                    cursor: stepIdx === task.steps.length - 1 ? 'not-allowed' : 'pointer',
+                                    fontWeight: 700,
+                                  }}
+                                  title="아래로 이동"
+                                >
+                                  ▼
+                                </button>
+                                <button
+                                  onClick={() => editStep(task.id, step.id)}
+                                  style={{
+                                    padding: '4px 8px',
+                                    background: 'rgba(251, 191, 36, 0.2)',
+                                    border: '1px solid rgba(251, 191, 36, 0.3)',
+                                    borderRadius: 6,
+                                    color: 'white',
+                                    fontSize: 11,
+                                    cursor: 'pointer',
+                                    fontWeight: 700,
+                                  }}
+                                  title="수정"
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  onClick={() => deleteStep(task.id, step.id)}
+                                  style={{
+                                    padding: '4px 8px',
+                                    background: 'rgba(239, 68, 68, 0.2)',
+                                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                                    borderRadius: 6,
+                                    color: 'white',
+                                    fontSize: 11,
+                                    cursor: 'pointer',
+                                    fontWeight: 700,
+                                  }}
+                                  title="삭제"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                              {step.done && <span style={{ fontSize: 16 }}>✅</span>}
                             </div>
                           ))}
                         </div>
@@ -3078,15 +3727,9 @@
                 </button>
                 <button
                   style={{ ...styles.btn, background: 'linear-gradient(135deg, #10b981, #059669)' }}
-                  onClick={exportLessonsCSV}
+                  onClick={exportLessonsAndEvalsCSV}
                 >
-                  💾 수업 CSV 저장
-                </button>
-                <button
-                  style={{ ...styles.btn, background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}
-                  onClick={exportEvalsCSV}
-                >
-                  💾 평가 CSV 저장
+                  💾 수업 및 평가 CSV 저장
                 </button>
                 <label className="file-input-label">
                   📥 CSV 불러오기
@@ -3102,7 +3745,7 @@
                   ◀ 이전 주
                 </button>
                 <div style={{ fontSize: 18, fontWeight: 800, color: 'white' }}>
-                  {lessonWeekStart.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} 주간
+                  {getWeekLabel(lessonWeekStart)}
                 </div>
                 <button
                   style={{ ...styles.btn2, padding: '10px 16px' }}
@@ -3146,24 +3789,33 @@
                               + 수업 추가
                             </div>
                           ) : (
-                            lessons.map(lesson => (
-                              <div
-                                key={lesson.id}
-                                className="lesson-card"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingLesson(lesson);
-                                }}
-                              >
-                                <div className="lesson-card-title">{lesson.subject}</div>
-                                <div className="lesson-card-subtitle">
-                                  {lesson.topic || '제재 미입력'}
+                            lessons.map(lesson => {
+                              const subjectColor = lesson.subject && SUBJECTS[lesson.subject]
+                                ? SUBJECTS[lesson.subject].color
+                                : '#8b5cf6';
+                              return (
+                                <div
+                                  key={lesson.id}
+                                  className="lesson-card"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingLesson(lesson);
+                                  }}
+                                  style={{
+                                    background: `linear-gradient(135deg, ${subjectColor}50, ${subjectColor}30)`,
+                                    border: `1px solid ${subjectColor}80`,
+                                  }}
+                                >
+                                  <div className="lesson-card-title">{lesson.subject}</div>
+                                  <div className="lesson-card-subtitle">
+                                    {lesson.topic || '제재 미입력'}
+                                  </div>
+                                  <div style={{ fontSize: 9, marginTop: 4, color: 'rgba(255,255,255,0.6)' }}>
+                                    {lesson.goal ? `목표: ${lesson.goal.slice(0, 20)}${lesson.goal.length > 20 ? '...' : ''}` : ''}
+                                  </div>
                                 </div>
-                                <div style={{ fontSize: 9, marginTop: 4, color: 'rgba(255,255,255,0.6)' }}>
-                                  {lesson.goal ? `목표: ${lesson.goal.slice(0, 20)}${lesson.goal.length > 20 ? '...' : ''}` : ''}
-                                </div>
-                              </div>
-                            ))
+                              );
+                            })
                           )}
                         </div>
                       );
@@ -3295,6 +3947,53 @@
                   </button>
                 </div>
               </div>
+
+              {/* 집중 기록 */}
+              {state.focusHistory && state.focusHistory.length > 0 && (
+                <div style={{ ...styles.card, marginTop: 20 }}>
+                  <h3 style={{ fontSize: 18, fontWeight: 800, color: 'white', marginBottom: 16 }}>
+                    📊 집중 기록 ({state.focusHistory.length}건)
+                  </h3>
+                  <div style={{ display: 'grid', gap: 12 }}>
+                    {state.focusHistory.slice(0, 10).map(record => (
+                      <div key={record.id} style={{
+                        padding: 16,
+                        background: 'rgba(255,255,255,0.08)',
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        borderRadius: 10,
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 8 }}>
+                          <div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: 'white', marginBottom: 4 }}>
+                              {record.note || '집중 세션'}
+                            </div>
+                            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
+                              {formatDateTime(record.completedAt)}
+                            </div>
+                          </div>
+                          <div style={{ fontSize: 16, fontWeight: 700, color: '#a78bfa' }}>
+                            {Math.round(record.duration / 60)}분
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                          <button
+                            style={{ ...styles.btn2, padding: '8px 16px', fontSize: 12 }}
+                            onClick={() => editFocusHistory(record.id)}
+                          >
+                            ✏️ 수정
+                          </button>
+                          <button
+                            style={{ ...styles.btn2, padding: '8px 16px', fontSize: 12, background: 'rgba(239, 68, 68, 0.3)' }}
+                            onClick={() => deleteFocusHistory(record.id)}
+                          >
+                            🗑️ 삭제
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -3380,15 +4079,87 @@
                       <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>
                         {sch.location ? `📍 ${sch.location}` : '📍 위치 미입력'} {sch.note ? `• ${sch.note}` : ''}
                       </div>
-                      <button
-                        style={{ ...styles.btn2, background: 'rgba(239, 68, 68, 0.3)' }}
-                        onClick={() => deleteSchedule(sch.id)}
-                      >
-                        삭제
-                      </button>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          style={{ ...styles.btn, padding: '8px 16px', fontSize: 12, background: 'linear-gradient(135deg, #10b981, #059669)' }}
+                          onClick={() => completeScheduleArrival(sch)}
+                        >
+                          ✅ 도착 완료
+                        </button>
+                        <button
+                          style={{ ...styles.btn2, padding: '8px 16px', fontSize: 12, background: 'rgba(239, 68, 68, 0.3)' }}
+                          onClick={() => deleteSchedule(sch.id)}
+                        >
+                          삭제
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
+
+              {/* 일정 도착 기록 */}
+              {state.scheduleHistory && state.scheduleHistory.length > 0 && (
+                <div style={{ ...styles.card, marginTop: 20 }}>
+                  <h3 style={{ fontSize: 18, fontWeight: 800, color: 'white', marginBottom: 16 }}>
+                    📊 일정 도착 기록 ({state.scheduleHistory.length}건)
+                  </h3>
+                  <div style={{ display: 'grid', gap: 12 }}>
+                    {state.scheduleHistory.slice(0, 10).map(record => (
+                      <div key={record.id} style={{
+                        padding: 16,
+                        background: 'rgba(255,255,255,0.08)',
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        borderRadius: 10,
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 8 }}>
+                          <div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: 'white', marginBottom: 4 }}>
+                              {record.scheduleName}
+                            </div>
+                            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
+                              도착: {formatDateTime(record.arrivalTime)}
+                            </div>
+                            {record.location && (
+                              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                                📍 {record.location}
+                              </div>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'end', gap: 4 }}>
+                            <span style={{
+                              padding: '4px 12px',
+                              borderRadius: 6,
+                              fontSize: 12,
+                              fontWeight: 700,
+                              background: record.onTime ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+                              color: record.onTime ? '#6ee7b7' : '#fca5a5',
+                            }}>
+                              {record.onTime ? '✅ 정시' : '⏰ 늦음'}
+                            </span>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: '#fbbf24' }}>
+                              +{record.points} P
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                          <button
+                            style={{ ...styles.btn2, padding: '8px 16px', fontSize: 12 }}
+                            onClick={() => editScheduleHistory(record.id)}
+                          >
+                            ✏️ 수정
+                          </button>
+                          <button
+                            style={{ ...styles.btn2, padding: '8px 16px', fontSize: 12, background: 'rgba(239, 68, 68, 0.3)' }}
+                            onClick={() => deleteScheduleHistory(record.id)}
+                          >
+                            🗑️ 삭제
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -3561,6 +4332,16 @@
 
               <div className="chart-actions" style={{ marginBottom: 20 }}>
                 <select
+                  value={behaviorFilter.chartType}
+                  onChange={(e) => setBehaviorFilter({ ...behaviorFilter, chartType: e.target.value })}
+                  className="form-select"
+                >
+                  <option value="daily">일별 행동 발생 빈도</option>
+                  <option value="weekly">주별 행동 발생 빈도</option>
+                  <option value="dayOfWeek">요일별 행동 발생 분포</option>
+                  <option value="period">교시별 행동 발생 분포</option>
+                </select>
+                <select
                   value={behaviorFilter.dateRange}
                   onChange={(e) => setBehaviorFilter({ ...behaviorFilter, dateRange: parseInt(e.target.value) })}
                   className="form-select"
@@ -3666,20 +4447,17 @@
                     })()}
                   </div>
 
-                  {/* 차트: 일별 행동 빈도 */}
-                  <div className="chart-container" style={{ marginBottom: 30 }}>
-                    <h3 style={{ fontSize: 16, fontWeight: 700, color: 'white', marginBottom: 16 }}>
-                      📊 일별 행동 빈도
-                    </h3>
-                    <canvas id="behaviorLineChart"></canvas>
-                  </div>
-
-                  {/* 차트: 행동 유형별 분포 */}
+                  {/* 차트: 선택된 유형 */}
                   <div className="chart-container">
                     <h3 style={{ fontSize: 16, fontWeight: 700, color: 'white', marginBottom: 16 }}>
-                      📊 행동 유형별 분포
+                      📊 {
+                        behaviorFilter.chartType === 'daily' ? '일별 행동 발생 빈도' :
+                        behaviorFilter.chartType === 'weekly' ? '주별 행동 발생 빈도' :
+                        behaviorFilter.chartType === 'dayOfWeek' ? '요일별 행동 발생 분포' :
+                        '교시별 행동 발생 분포'
+                      } (학생별 추이)
                     </h3>
-                    <canvas id="behaviorBarChart"></canvas>
+                    <canvas id="behaviorLineChart"></canvas>
                   </div>
 
                 </div>
@@ -3719,13 +4497,24 @@
 
                 <div className="form-field">
                   <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>과목명 *</label>
-                  <input
-                    type="text"
-                    placeholder="예: 수학, 국어, 사회성 훈련"
+                  <select
                     value={editingLesson.subject || ''}
                     onChange={(e) => setEditingLesson({ ...editingLesson, subject: e.target.value })}
-                    className="form-control"
-                  />
+                    className="form-select"
+                    style={{
+                      background: editingLesson.subject && SUBJECTS[editingLesson.subject]
+                        ? SUBJECTS[editingLesson.subject].color
+                        : 'rgba(255,255,255,0.1)',
+                      color: 'white',
+                    }}
+                  >
+                    <option value="" style={{ background: '#1e293b', color: 'white' }}>과목을 선택하세요</option>
+                    {Object.entries(SUBJECTS).map(([subj, data]) => (
+                      <option key={subj} value={subj} style={{ background: '#1e293b', color: 'white' }}>
+                        {data.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="form-field">
@@ -3782,6 +4571,144 @@
                   </div>
                 )}
 
+                {/* 학생 평가 섹션 (수업 수정 시에만 표시) */}
+                {editingLesson.id && (
+                  <div style={{ marginTop: 24, padding: 16, background: 'rgba(0,0,0,0.2)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <h3 style={{ fontSize: 16, fontWeight: 700, color: 'white', marginBottom: 12 }}>
+                      📊 학생별 평가
+                    </h3>
+                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginBottom: 12 }}>
+                      평가 척도: 0(결석) / 1(미참여) / 2(미도달) / 3(최대촉구) / 4(일부촉구) / 5(목표달성)
+                    </p>
+                    <div className="student-eval-grid">
+                      <div className="eval-cell" style={{ fontWeight: 900, background: 'rgba(139, 92, 246, 0.3)', color: '#c4b5fd' }}>학생</div>
+                      {[0, 1, 2, 3, 4, 5].map(score => (
+                        <div key={score} className="eval-cell" style={{ fontWeight: 900, background: 'rgba(139, 92, 246, 0.3)', color: '#c4b5fd' }}>
+                          <div>{score}점</div>
+                          <div style={{ fontSize: 9, marginTop: 2 }}>{EVAL_SCORES[score].label}</div>
+                        </div>
+                      ))}
+                      {[1, 2, 3, 4, 5, 6, 7].map(studentNum => {
+                        const studentId = `학생${studentNum}`;
+                        const evalKey = `${editingLesson.id}-${studentId}`;
+                        const currentScore = state.studentEvals[evalKey]?.score;
+                        return (
+                          <React.Fragment key={studentNum}>
+                            <div className="eval-cell" style={{ fontWeight: 700, background: 'rgba(59, 130, 246, 0.1)' }}>
+                              {studentId}
+                            </div>
+                            {[0, 1, 2, 3, 4, 5].map(score => (
+                              <div
+                                key={score}
+                                className={`eval-cell eval-score-${score} ${currentScore === score ? 'selected' : ''}`}
+                                onClick={() => saveStudentEval(editingLesson.id, studentId, score)}
+                                style={{
+                                  cursor: 'pointer',
+                                  fontWeight: currentScore === score ? 900 : 600,
+                                }}
+                              >
+                                {currentScore === score ? '✓' : '-'}
+                              </div>
+                            ))}
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* PBS 행동 기록 섹션 (수업 수정 시에만 표시) */}
+                {editingLesson.id && (
+                  <div style={{ marginTop: 16, padding: 16, background: 'rgba(0,0,0,0.2)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <h3 style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>
+                        🎯 PBS 행동 기록
+                      </h3>
+                      <button
+                        style={{ ...styles.btn2, padding: '8px 12px', background: 'rgba(59, 130, 246, 0.3)' }}
+                        onClick={() => {
+                          const lessonDate = editingLesson.date ? new Date(editingLesson.date) : new Date();
+                          setEditingBehavior({
+                            timestamp: lessonDate.getTime(),
+                            lessonId: editingLesson.id,
+                            studentName: '',
+                            behaviorType: 'POSITIVE',
+                            antecedent: '',
+                            behavior: '',
+                            consequence: '',
+                            frequency: 1,
+                            intensity: 1,
+                            duration: 0,
+                            interventionNote: ''
+                          });
+                        }}
+                      >
+                        ➕ 행동 기록 추가
+                      </button>
+                    </div>
+                    <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                      {(() => {
+                        const lessonBehaviors = state.behaviorLog.filter(b => b.lessonId === editingLesson.id);
+                        return lessonBehaviors.length === 0 ? (
+                          <div style={{ textAlign: 'center', padding: 20, color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>
+                            이 수업에 대한 행동 기록이 없습니다.
+                          </div>
+                        ) : (
+                          <div style={{ display: 'grid', gap: 8 }}>
+                            {lessonBehaviors.map(log => (
+                              <div
+                                key={log.id}
+                                style={{
+                                  padding: 10,
+                                  background: 'rgba(0,0,0,0.2)',
+                                  borderRadius: 8,
+                                  border: '1px solid rgba(255,255,255,0.1)',
+                                  fontSize: 12,
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ fontWeight: 700, color: BEHAVIOR_TYPES[log.behaviorType]?.color }}>
+                                      {BEHAVIOR_TYPES[log.behaviorType]?.icon} {log.studentName}
+                                    </div>
+                                    <div style={{ color: 'rgba(255,255,255,0.8)', marginTop: 2 }}>
+                                      {log.behavior || '행동 미입력'}
+                                    </div>
+                                    <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10, marginTop: 2 }}>
+                                      {log.antecedent || '선행사건 미입력'} → {log.consequence || '후속결과 미입력'}
+                                    </div>
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 4 }}>
+                                    <button
+                                      style={{ ...styles.btn2, padding: '4px 8px', fontSize: 10, background: 'rgba(251, 191, 36, 0.2)' }}
+                                      onClick={() => setEditingBehavior(log)}
+                                    >
+                                      ✏️
+                                    </button>
+                                    <button
+                                      style={{ ...styles.btn2, padding: '4px 8px', fontSize: 10, background: 'rgba(239, 68, 68, 0.2)' }}
+                                      onClick={() => {
+                                        if (confirm('이 행동 기록을 삭제하시겠습니까?')) {
+                                          setState(p => ({
+                                            ...p,
+                                            behaviorLog: p.behaviorLog.filter(b => b.id !== log.id)
+                                          }));
+                                        }
+                                      }}
+                                    >
+                                      🗑️
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
                   <button
                     style={{ ...styles.btn, flex: 1 }}
@@ -3810,6 +4737,107 @@
                     style={{ ...styles.btn2, padding: '12px 20px' }}
                     onClick={() => setEditingLesson(null)}
                   >
+                    취소
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 집중 기록 편집 모달 */}
+          {editingFocusHistory && (
+            <div className="modal-overlay" onClick={() => setEditingFocusHistory(null)}>
+              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                <h2 style={{ fontSize: 22, fontWeight: 800, color: 'white', marginBottom: 20 }}>
+                  ✏️ 집중 기록 수정
+                </h2>
+
+                <div className="form-field">
+                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
+                    메모
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="집중 활동 메모"
+                    value={editingFocusHistory.note || ''}
+                    onChange={(e) => setEditingFocusHistory({ ...editingFocusHistory, note: e.target.value })}
+                    className="form-control"
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
+                    집중 시간 (분)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="집중 시간"
+                    value={editingFocusHistory.durationMin || ''}
+                    onChange={(e) => setEditingFocusHistory({ ...editingFocusHistory, durationMin: parseInt(e.target.value) || 1 })}
+                    className="form-control"
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+                  <button style={styles.btn} onClick={saveFocusHistory}>
+                    💾 저장
+                  </button>
+                  <button style={{ ...styles.btn2, padding: '12px 20px' }} onClick={() => setEditingFocusHistory(null)}>
+                    취소
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 일정 기록 편집 모달 */}
+          {editingScheduleHistory && (
+            <div className="modal-overlay" onClick={() => setEditingScheduleHistory(null)}>
+              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                <h2 style={{ fontSize: 22, fontWeight: 800, color: 'white', marginBottom: 20 }}>
+                  ✏️ 일정 기록 수정
+                </h2>
+
+                <div className="form-field">
+                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
+                    일정 이름
+                  </label>
+                  <input
+                    type="text"
+                    value={editingScheduleHistory.scheduleName}
+                    disabled
+                    className="form-control"
+                    style={{ opacity: 0.6, cursor: 'not-allowed' }}
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
+                    실제 도착 시간 *
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={editingScheduleHistory.arrivalTimeLocal || ''}
+                    onChange={(e) => setEditingScheduleHistory({ ...editingScheduleHistory, arrivalTimeLocal: e.target.value })}
+                    className="form-control"
+                  />
+                </div>
+
+                <div style={{ padding: 12, background: 'rgba(59, 130, 246, 0.1)', borderRadius: 8, marginTop: 12 }}>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>
+                    예정 도착: {formatDateTime(editingScheduleHistory.plannedArrivalTime)}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>
+                    정시 도착 시 100 포인트 획득
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+                  <button style={styles.btn} onClick={saveScheduleHistory}>
+                    💾 저장
+                  </button>
+                  <button style={{ ...styles.btn2, padding: '12px 20px' }} onClick={() => setEditingScheduleHistory(null)}>
                     취소
                   </button>
                 </div>
