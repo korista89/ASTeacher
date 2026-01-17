@@ -1953,7 +1953,8 @@
         }
         const filteredData = state.behaviorLog.filter(b => {
           if (b.timestamp < startDate) return false;
-          if (behaviorFilter.student !== 'ALL' && b.studentName !== behaviorFilter.student) return false;
+          // Don't filter by student for ALL or CLASS_TOTAL - we need all data for aggregation
+          if (behaviorFilter.student !== 'ALL' && behaviorFilter.student !== 'CLASS_TOTAL' && b.studentName !== behaviorFilter.student) return false;
           return true;
         });
 
@@ -1986,24 +1987,42 @@
           });
 
           labels = Object.keys(dailyData).reverse();
-          students.forEach(student => {
+
+          // Add datasets based on filter selection
+          if (behaviorFilter.student === 'ALL') {
+            // Show all individual students only
+            students.forEach(student => {
+              datasets.push({
+                label: student,
+                data: labels.map(label => dailyData[label][student]),
+                borderColor: studentColors[student],
+                backgroundColor: 'transparent',
+                tension: 0.4,
+                borderWidth: 2,
+              });
+            });
+          } else if (behaviorFilter.student === 'CLASS_TOTAL') {
+            // Show only class total
             datasets.push({
-              label: student,
-              data: labels.map(label => dailyData[label][student]),
-              borderColor: studentColors[student],
+              label: '학급 합계',
+              data: labels.map(label => dailyData[label]['학급 합계']),
+              borderColor: studentColors['학급 합계'],
+              backgroundColor: 'transparent',
+              tension: 0.4,
+              borderWidth: 3,
+            });
+          } else {
+            // Show specific student only
+            const selectedStudent = behaviorFilter.student;
+            datasets.push({
+              label: selectedStudent,
+              data: labels.map(label => dailyData[label][selectedStudent] || 0),
+              borderColor: studentColors[selectedStudent],
               backgroundColor: 'transparent',
               tension: 0.4,
               borderWidth: 2,
             });
-          });
-          datasets.push({
-            label: '학급 합계',
-            data: labels.map(label => dailyData[label]['학급 합계']),
-            borderColor: studentColors['학급 합계'],
-            backgroundColor: 'transparent',
-            tension: 0.4,
-            borderWidth: 3,
-          });
+          }
 
         } else if (behaviorFilter.chartType === 'weekly') {
           // Weekly frequency
@@ -2032,24 +2051,42 @@
           });
 
           labels = Object.keys(weeklyData).reverse();
-          students.forEach(student => {
+
+          // Add datasets based on filter selection
+          if (behaviorFilter.student === 'ALL') {
+            // Show all individual students only
+            students.forEach(student => {
+              datasets.push({
+                label: student,
+                data: labels.map(label => weeklyData[label][student]),
+                borderColor: studentColors[student],
+                backgroundColor: 'transparent',
+                tension: 0.4,
+                borderWidth: 2,
+              });
+            });
+          } else if (behaviorFilter.student === 'CLASS_TOTAL') {
+            // Show only class total
             datasets.push({
-              label: student,
-              data: labels.map(label => weeklyData[label][student]),
-              borderColor: studentColors[student],
+              label: '학급 합계',
+              data: labels.map(label => weeklyData[label]['학급 합계']),
+              borderColor: studentColors['학급 합계'],
+              backgroundColor: 'transparent',
+              tension: 0.4,
+              borderWidth: 3,
+            });
+          } else {
+            // Show specific student only
+            const selectedStudent = behaviorFilter.student;
+            datasets.push({
+              label: selectedStudent,
+              data: labels.map(label => weeklyData[label][selectedStudent] || 0),
+              borderColor: studentColors[selectedStudent],
               backgroundColor: 'transparent',
               tension: 0.4,
               borderWidth: 2,
             });
-          });
-          datasets.push({
-            label: '학급 합계',
-            data: labels.map(label => weeklyData[label]['학급 합계']),
-            borderColor: studentColors['학급 합계'],
-            backgroundColor: 'transparent',
-            tension: 0.4,
-            borderWidth: 3,
-          });
+          }
 
         } else if (behaviorFilter.chartType === 'dayOfWeek') {
           // Day of week distribution (Mon-Fri only)
@@ -2074,24 +2111,42 @@
           });
 
           labels = daysOfWeek;
-          students.forEach(student => {
+
+          // Add datasets based on filter selection
+          if (behaviorFilter.student === 'ALL') {
+            // Show all individual students only
+            students.forEach(student => {
+              datasets.push({
+                label: student,
+                data: labels.map(label => dayData[label][student]),
+                borderColor: studentColors[student],
+                backgroundColor: 'transparent',
+                tension: 0.4,
+                borderWidth: 2,
+              });
+            });
+          } else if (behaviorFilter.student === 'CLASS_TOTAL') {
+            // Show only class total
             datasets.push({
-              label: student,
-              data: labels.map(label => dayData[label][student]),
-              borderColor: studentColors[student],
+              label: '학급 합계',
+              data: labels.map(label => dayData[label]['학급 합계']),
+              borderColor: studentColors['학급 합계'],
+              backgroundColor: 'transparent',
+              tension: 0.4,
+              borderWidth: 3,
+            });
+          } else {
+            // Show specific student only
+            const selectedStudent = behaviorFilter.student;
+            datasets.push({
+              label: selectedStudent,
+              data: labels.map(label => dayData[label][selectedStudent] || 0),
+              borderColor: studentColors[selectedStudent],
               backgroundColor: 'transparent',
               tension: 0.4,
               borderWidth: 2,
             });
-          });
-          datasets.push({
-            label: '학급 합계',
-            data: labels.map(label => dayData[label]['학급 합계']),
-            borderColor: studentColors['학급 합계'],
-            backgroundColor: 'transparent',
-            tension: 0.4,
-            borderWidth: 3,
-          });
+          }
 
         } else if (behaviorFilter.chartType === 'period') {
           // Period distribution (교시별 - periods 1-7 only)
@@ -2123,24 +2178,42 @@
           });
 
           labels = periods;
-          students.forEach(student => {
+
+          // Add datasets based on filter selection
+          if (behaviorFilter.student === 'ALL') {
+            // Show all individual students only
+            students.forEach(student => {
+              datasets.push({
+                label: student,
+                data: labels.map(label => periodData[label][student]),
+                borderColor: studentColors[student],
+                backgroundColor: 'transparent',
+                tension: 0.4,
+                borderWidth: 2,
+              });
+            });
+          } else if (behaviorFilter.student === 'CLASS_TOTAL') {
+            // Show only class total
             datasets.push({
-              label: student,
-              data: labels.map(label => periodData[label][student]),
-              borderColor: studentColors[student],
+              label: '학급 합계',
+              data: labels.map(label => periodData[label]['학급 합계']),
+              borderColor: studentColors['학급 합계'],
+              backgroundColor: 'transparent',
+              tension: 0.4,
+              borderWidth: 3,
+            });
+          } else {
+            // Show specific student only
+            const selectedStudent = behaviorFilter.student;
+            datasets.push({
+              label: selectedStudent,
+              data: labels.map(label => periodData[label][selectedStudent] || 0),
+              borderColor: studentColors[selectedStudent],
               backgroundColor: 'transparent',
               tension: 0.4,
               borderWidth: 2,
             });
-          });
-          datasets.push({
-            label: '학급 합계',
-            data: labels.map(label => periodData[label]['학급 합계']),
-            borderColor: studentColors['학급 합계'],
-            backgroundColor: 'transparent',
-            tension: 0.4,
-            borderWidth: 3,
-          });
+          }
 
         } else if (behaviorFilter.chartType === 'weeklyGoalAchievement') {
           // Weekly goal achievement (scores 3, 4, 5)
@@ -2175,24 +2248,42 @@
           });
 
           labels = Object.keys(weeklyData).reverse();
-          students.forEach(student => {
+
+          // Add datasets based on filter selection
+          if (behaviorFilter.student === 'ALL') {
+            // Show all individual students only
+            students.forEach(student => {
+              datasets.push({
+                label: student,
+                data: labels.map(label => weeklyData[label][student]),
+                borderColor: studentColors[student],
+                backgroundColor: 'transparent',
+                tension: 0.4,
+                borderWidth: 2,
+              });
+            });
+          } else if (behaviorFilter.student === 'CLASS_TOTAL') {
+            // Show only class total
             datasets.push({
-              label: student,
-              data: labels.map(label => weeklyData[label][student]),
-              borderColor: studentColors[student],
+              label: '학급 합계',
+              data: labels.map(label => weeklyData[label]['학급 합계']),
+              borderColor: studentColors['학급 합계'],
+              backgroundColor: 'transparent',
+              tension: 0.4,
+              borderWidth: 3,
+            });
+          } else {
+            // Show specific student only
+            const selectedStudent = behaviorFilter.student;
+            datasets.push({
+              label: selectedStudent,
+              data: labels.map(label => weeklyData[label][selectedStudent] || 0),
+              borderColor: studentColors[selectedStudent],
               backgroundColor: 'transparent',
               tension: 0.4,
               borderWidth: 2,
             });
-          });
-          datasets.push({
-            label: '학급 합계',
-            data: labels.map(label => weeklyData[label]['학급 합계']),
-            borderColor: studentColors['학급 합계'],
-            backgroundColor: 'transparent',
-            tension: 0.4,
-            borderWidth: 3,
-          });
+          }
 
         } else if (behaviorFilter.chartType === 'weeklyEvalFreq') {
           // Weekly evaluation frequency (scores 1-5, excluding 0)
@@ -2227,24 +2318,42 @@
           });
 
           labels = Object.keys(weeklyData).reverse();
-          students.forEach(student => {
+
+          // Add datasets based on filter selection
+          if (behaviorFilter.student === 'ALL') {
+            // Show all individual students only
+            students.forEach(student => {
+              datasets.push({
+                label: student,
+                data: labels.map(label => weeklyData[label][student]),
+                borderColor: studentColors[student],
+                backgroundColor: 'transparent',
+                tension: 0.4,
+                borderWidth: 2,
+              });
+            });
+          } else if (behaviorFilter.student === 'CLASS_TOTAL') {
+            // Show only class total
             datasets.push({
-              label: student,
-              data: labels.map(label => weeklyData[label][student]),
-              borderColor: studentColors[student],
+              label: '학급 합계',
+              data: labels.map(label => weeklyData[label]['학급 합계']),
+              borderColor: studentColors['학급 합계'],
+              backgroundColor: 'transparent',
+              tension: 0.4,
+              borderWidth: 3,
+            });
+          } else {
+            // Show specific student only
+            const selectedStudent = behaviorFilter.student;
+            datasets.push({
+              label: selectedStudent,
+              data: labels.map(label => weeklyData[label][selectedStudent] || 0),
+              borderColor: studentColors[selectedStudent],
               backgroundColor: 'transparent',
               tension: 0.4,
               borderWidth: 2,
             });
-          });
-          datasets.push({
-            label: '학급 합계',
-            data: labels.map(label => weeklyData[label]['학급 합계']),
-            borderColor: studentColors['학급 합계'],
-            backgroundColor: 'transparent',
-            tension: 0.4,
-            borderWidth: 3,
-          });
+          }
 
         } else if (behaviorFilter.chartType === 'dailyEvalFreq') {
           // Daily evaluation frequency (scores 1-5, excluding 0)
@@ -2277,24 +2386,42 @@
           });
 
           labels = Object.keys(dailyData).reverse();
-          students.forEach(student => {
+
+          // Add datasets based on filter selection
+          if (behaviorFilter.student === 'ALL') {
+            // Show all individual students only
+            students.forEach(student => {
+              datasets.push({
+                label: student,
+                data: labels.map(label => dailyData[label][student]),
+                borderColor: studentColors[student],
+                backgroundColor: 'transparent',
+                tension: 0.4,
+                borderWidth: 2,
+              });
+            });
+          } else if (behaviorFilter.student === 'CLASS_TOTAL') {
+            // Show only class total
             datasets.push({
-              label: student,
-              data: labels.map(label => dailyData[label][student]),
-              borderColor: studentColors[student],
+              label: '학급 합계',
+              data: labels.map(label => dailyData[label]['학급 합계']),
+              borderColor: studentColors['학급 합계'],
+              backgroundColor: 'transparent',
+              tension: 0.4,
+              borderWidth: 3,
+            });
+          } else {
+            // Show specific student only
+            const selectedStudent = behaviorFilter.student;
+            datasets.push({
+              label: selectedStudent,
+              data: labels.map(label => dailyData[label][selectedStudent] || 0),
+              borderColor: studentColors[selectedStudent],
               backgroundColor: 'transparent',
               tension: 0.4,
               borderWidth: 2,
             });
-          });
-          datasets.push({
-            label: '학급 합계',
-            data: labels.map(label => dailyData[label]['학급 합계']),
-            borderColor: studentColors['학급 합계'],
-            backgroundColor: 'transparent',
-            tension: 0.4,
-            borderWidth: 3,
-          });
+          }
         }
 
         // Create or update chart
@@ -3105,7 +3232,8 @@
         }
         return state.behaviorLog.filter(b => {
           if (b.timestamp < startDate) return false;
-          if (behaviorFilter.student !== 'ALL' && b.studentName !== behaviorFilter.student) return false;
+          // Don't filter by student for ALL or CLASS_TOTAL - show all data
+          if (behaviorFilter.student !== 'ALL' && behaviorFilter.student !== 'CLASS_TOTAL' && b.studentName !== behaviorFilter.student) return false;
           return true;
         });
       }, [state.behaviorLog, behaviorFilter]);
@@ -4692,7 +4820,7 @@
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                   <button
                     style={styles.btn}
-                    onClick={() => setEditingBehavior({ behaviorType: 'TARGET', frequency: 1, intensity: 1, duration: 0 })}
+                    onClick={() => setEditingBehavior({ behaviorType: 'TARGET', frequency: 0 })}
                   >
                     ➕ 행동 기록 추가
                   </button>
@@ -4713,7 +4841,7 @@
                   ◀ 이전 주
                 </button>
                 <div style={{ fontSize: 18, fontWeight: 800, color: 'white' }}>
-                  {behaviorWeekStart.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} 주간
+                  {getWeekLabel(behaviorWeekStart)}
                 </div>
                 <button
                   style={{ ...styles.btn2, padding: '10px 16px' }}
@@ -4872,8 +5000,10 @@
                   onChange={(e) => setBehaviorFilter({ ...behaviorFilter, student: e.target.value })}
                   className="form-select"
                 >
-                  <option value="ALL">전체 학생</option>
-                  {behaviorStudents.map(student => (
+                  <option value="ALL">전체 데이터 (모든 학생)</option>
+                  <option value="CLASS_TOTAL">학급 합계</option>
+                  <option disabled>────────────</option>
+                  {['학생1', '학생2', '학생3', '학생4', '학생5', '학생6', '학생7'].map(student => (
                     <option key={student} value={student}>{student}</option>
                   ))}
                 </select>
@@ -5153,9 +5283,7 @@
                             antecedent: '',
                             behavior: '',
                             consequence: '',
-                            frequency: 1,
-                            intensity: 1,
-                            duration: 0,
+                            frequency: 0,
                             interventionNote: ''
                           });
                         }}
@@ -5523,50 +5651,47 @@
                   </datalist>
                 </div>
 
-                <div className="form-grid">
-                  <div>
-                    <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
-                      빈도 (회)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={editingBehavior.frequency || 1}
-                      onChange={(e) => setEditingBehavior({ ...editingBehavior, frequency: parseInt(e.target.value) || 1 })}
-                      className="form-control"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                    />
+                <div className="form-field">
+                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 10, fontWeight: 700 }}>
+                    행동 발생 빈도 *
+                  </label>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {[0, 1, 2, 3, 4, 5].map(freq => (
+                      <button
+                        key={freq}
+                        type="button"
+                        style={{
+                          flex: '1 1 auto',
+                          minWidth: '60px',
+                          padding: '12px 16px',
+                          borderRadius: 10,
+                          border: editingBehavior.frequency === freq ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.2)',
+                          background: editingBehavior.frequency === freq
+                            ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.4), rgba(99, 102, 241, 0.4))'
+                            : 'rgba(255,255,255,0.05)',
+                          color: 'white',
+                          fontSize: 16,
+                          fontWeight: editingBehavior.frequency === freq ? 800 : 600,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                        }}
+                        onClick={() => setEditingBehavior({ ...editingBehavior, frequency: freq })}
+                      >
+                        <div style={{ fontSize: 18, marginBottom: 2 }}>{freq}회</div>
+                        <div style={{ fontSize: 10, opacity: 0.7 }}>
+                          {freq === 0 && '없음'}
+                          {freq === 1 && '1회'}
+                          {freq === 2 && '2회'}
+                          {freq === 3 && '3회'}
+                          {freq === 4 && '4회'}
+                          {freq === 5 && '5회+'}
+                        </div>
+                      </button>
+                    ))}
                   </div>
-                  <div>
-                    <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
-                      강도 (1-5)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="5"
-                      value={editingBehavior.intensity || 1}
-                      onChange={(e) => setEditingBehavior({ ...editingBehavior, intensity: parseInt(e.target.value) || 1 })}
-                      className="form-control"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
-                      지속시간 (분)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={editingBehavior.duration || 0}
-                      onChange={(e) => setEditingBehavior({ ...editingBehavior, duration: parseInt(e.target.value) || 0 })}
-                      className="form-control"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                    />
-                  </div>
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 8 }}>
+                    💡 행동이 관찰된 횟수를 선택하세요 (0회 = 발생하지 않음, 5회 = 5회 이상)
+                  </p>
                 </div>
 
                 <div className="form-field">
