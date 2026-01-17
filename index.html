@@ -1461,6 +1461,7 @@
       const nextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
 
       const handleTouchStart = (event) => {
+        if (!event.touches || event.touches.length === 0) return;
         const touch = event.touches[0];
         touchStartXRef.current = touch.clientX;
         touchStartYRef.current = touch.clientY;
@@ -1468,28 +1469,7 @@
 
       const handleTouchEnd = (event) => {
         if (touchStartXRef.current === null || touchStartYRef.current === null) return;
-        const touch = event.changedTouches[0];
-        const deltaX = touch.clientX - touchStartXRef.current;
-        const deltaY = touch.clientY - touchStartYRef.current;
-        if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
-          if (deltaX > 0) {
-            prevMonth();
-          } else {
-            nextMonth();
-          }
-        }
-        touchStartXRef.current = null;
-        touchStartYRef.current = null;
-      };
-
-      const handleTouchStart = (event) => {
-        const touch = event.touches[0];
-        touchStartXRef.current = touch.clientX;
-        touchStartYRef.current = touch.clientY;
-      };
-
-      const handleTouchEnd = (event) => {
-        if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+        if (!event.changedTouches || event.changedTouches.length === 0) return;
         const touch = event.changedTouches[0];
         const deltaX = touch.clientX - touchStartXRef.current;
         const deltaY = touch.clientY - touchStartYRef.current;
