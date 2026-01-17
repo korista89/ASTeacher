@@ -3559,12 +3559,12 @@
                 </h3>
                 <div className="stat-grid">
                   {[
-                    { label: '보유 포인트', value: state.points.toLocaleString() + 'P', icon: '🪙', color: '#fbbf24', onClick: () => setView('points') },
-                    { label: '전체 수업', value: state.lessons.length, icon: '👨‍🏫', color: '#8b5cf6', onClick: () => setView('teaching') },
-                    { label: '행동 기록', value: state.behaviorLog.length, icon: '📋', color: '#3b82f6', onClick: () => setView('behaviorAnalytics') },
-                    { label: '집중 세션', value: state.focusHistory.length, icon: '⏱️', color: '#10b981', onClick: () => setView('focus') },
-                    { label: '전체 과제', value: stats.total, icon: '✅', color: '#6366f1', onClick: () => setView('tasks') },
-                    { label: '완료 과제', value: stats.completed, icon: '✔️', color: '#22c55e', onClick: () => setView('tasks') },
+                    { label: '보유 포인트', value: ((state.points || 0).toLocaleString()) + 'P', icon: '🪙', color: '#fbbf24', onClick: () => setView('points') },
+                    { label: '전체 수업', value: (state.lessons || []).length, icon: '👨‍🏫', color: '#8b5cf6', onClick: () => setView('teaching') },
+                    { label: '행동 기록', value: (state.behaviorLog || []).length, icon: '📋', color: '#3b82f6', onClick: () => setView('behaviorAnalytics') },
+                    { label: '집중 세션', value: (state.focusHistory || []).length, icon: '⏱️', color: '#10b981', onClick: () => setView('focus') },
+                    { label: '전체 과제', value: stats.total || 0, icon: '✅', color: '#6366f1', onClick: () => setView('tasks') },
+                    { label: '완료 과제', value: stats.completed || 0, icon: '✔️', color: '#22c55e', onClick: () => setView('tasks') },
                   ].map((stat, i) => (
                     <div
                       key={i}
@@ -3630,9 +3630,11 @@
 
               {/* 오늘의 수업 */}
               {(() => {
+                if (!state.lessons || state.lessons.length === 0) return null;
+
                 const today = new Date();
                 const todayStr = today.toLocaleDateString('ko-KR');
-                const todayLessons = state.lessons.filter(l => l.date && new Date(l.date).toLocaleDateString('ko-KR') === todayStr);
+                const todayLessons = state.lessons.filter(l => l && l.date && new Date(l.date).toLocaleDateString('ko-KR') === todayStr);
 
                 return todayLessons.length > 0 && (
                   <div style={{ marginBottom: 30 }}>
@@ -3651,7 +3653,7 @@
                           }}
                         >
                           <div style={{ fontSize: 16, fontWeight: 700, color: '#c4b5fd', marginBottom: 4 }}>
-                            {lesson.period} - {lesson.subject}
+                            {lesson.period || '미정'} - {lesson.subject || '제목 없음'}
                           </div>
                           <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>
                             {lesson.topic || '주제 미입력'}
@@ -3664,13 +3666,13 @@
               })()}
 
               {/* 다가오는 일정 */}
-              {state.schedules.length > 0 && (
+              {state.schedules && state.schedules.length > 0 && (
                 <div style={{ marginBottom: 30 }}>
                   <h3 style={{ fontSize: 18, fontWeight: 700, color: 'white', marginBottom: 16 }}>
                     ⏰ 다가오는 일정
                   </h3>
                   {state.schedules
-                    .filter(s => s.arrivalTs - s.departBeforeMin * 60 * 1000 > nowMs())
+                    .filter(s => s && s.arrivalTs && (s.arrivalTs - (s.departBeforeMin || 30) * 60 * 1000 > nowMs()))
                     .sort((a, b) => a.arrivalTs - b.arrivalTs)
                     .slice(0, 3)
                     .map(sch => (
@@ -3697,16 +3699,16 @@
                 }}>
                   <div style={{ display: 'grid', gap: 12, fontSize: 14, color: 'rgba(255,255,255,0.8)' }}>
                     <div>
-                      • 집중 성공 세션: {state.focusHistory.filter(f => f.success).length}회
+                      • 집중 성공 세션: {(state.focusHistory || []).filter(f => f && f.success).length}회
                     </div>
                     <div>
-                      • 완료된 과제: {stats.completed}개
+                      • 완료된 과제: {stats.completed || 0}개
                     </div>
                     <div>
-                      • 진행 중인 과제: {stats.total - stats.completed}개
+                      • 진행 중인 과제: {(stats.total || 0) - (stats.completed || 0)}개
                     </div>
                     <div style={{ color: '#fbbf24', fontWeight: 700, marginTop: 8 }}>
-                      총 획득 포인트: {state.points.toLocaleString()}P
+                      총 획득 포인트: {(state.points || 0).toLocaleString()}P
                     </div>
                   </div>
                 </div>
