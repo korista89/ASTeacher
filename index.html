@@ -483,6 +483,29 @@
       gap: 16px;
     }
 
+    .chart-container canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    .chart-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .chart-actions .form-select {
+      min-width: 140px;
+      flex: 1 1 160px;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+    }
+
     /* 진행률 자동 표시 */
     .auto-progress-badge {
       display: inline-flex;
@@ -690,6 +713,52 @@
       gap: 4px;
     }
 
+    .form-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+
+    .form-control,
+    .form-select,
+    .form-textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: white;
+      font-size: 16px;
+      line-height: 1.4;
+    }
+
+    .form-textarea {
+      resize: vertical;
+      min-height: 120px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 4px;
+    }
+
     .bottom-nav-btn.active {
       background: rgba(99, 102, 241, 0.3);
       color: white;
@@ -830,6 +899,10 @@
     .swipeable {
       touch-action: pan-y;
       user-select: none;
+    }
+
+    .calendar-swipe {
+      touch-action: pan-y;
     }
 
     .calendar-swipe {
@@ -1386,6 +1459,28 @@
 
       const prevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
       const nextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
+
+      const handleTouchStart = (event) => {
+        const touch = event.touches[0];
+        touchStartXRef.current = touch.clientX;
+        touchStartYRef.current = touch.clientY;
+      };
+
+      const handleTouchEnd = (event) => {
+        if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+        const touch = event.changedTouches[0];
+        const deltaX = touch.clientX - touchStartXRef.current;
+        const deltaY = touch.clientY - touchStartYRef.current;
+        if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
+          if (deltaX > 0) {
+            prevMonth();
+          } else {
+            nextMonth();
+          }
+        }
+        touchStartXRef.current = null;
+        touchStartYRef.current = null;
+      };
 
       const handleTouchStart = (event) => {
         const touch = event.touches[0];
@@ -2560,6 +2655,21 @@
           schedules: p.schedules.filter(s => s.id !== scheduleId),
         }));
       };
+
+      const behaviorStudents = useMemo(() => {
+        return Array.from(new Set(state.behaviorLog.map(b => b.studentName).filter(Boolean))).sort();
+      }, [state.behaviorLog]);
+
+      const filteredBehaviorLog = useMemo(() => {
+        const now = Date.now();
+        const rangeMs = behaviorFilter.dateRange * 24 * 60 * 60 * 1000;
+        return state.behaviorLog.filter(b => {
+          if (b.timestamp < now - rangeMs) return false;
+          if (behaviorFilter.student !== 'ALL' && b.studentName !== behaviorFilter.student) return false;
+          if (behaviorFilter.behaviorType !== 'ALL' && b.behaviorType !== behaviorFilter.behaviorType) return false;
+          return true;
+        });
+      }, [state.behaviorLog, behaviorFilter]);
 
       return (
         <div style={styles.container} className="app-container">
