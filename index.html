@@ -2158,9 +2158,9 @@
           }
 
           // Count student evaluations with scores 3, 4, 5
-          Object.entries(state.studentEvals).forEach(([key, eval]) => {
-            if (eval.score >= 3 && eval.score <= 5 && eval.timestamp >= startDate) {
-              const weekStart = new Date(eval.timestamp);
+          Object.entries(state.studentEvals).forEach(([key, evalData]) => {
+            if (evalData.score >= 3 && evalData.score <= 5 && evalData.timestamp >= startDate) {
+              const weekStart = new Date(evalData.timestamp);
               weekStart.setDate(weekStart.getDate() - weekStart.getDay());
               const weekLabel = `${weekStart.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}주`;
 
@@ -2210,9 +2210,9 @@
           }
 
           // Count student evaluations with scores 1-5 (excluding 0)
-          Object.entries(state.studentEvals).forEach(([key, eval]) => {
-            if (eval.score >= 1 && eval.score <= 5 && eval.timestamp >= startDate) {
-              const weekStart = new Date(eval.timestamp);
+          Object.entries(state.studentEvals).forEach(([key, evalData]) => {
+            if (evalData.score >= 1 && evalData.score <= 5 && evalData.timestamp >= startDate) {
+              const weekStart = new Date(evalData.timestamp);
               weekStart.setDate(weekStart.getDate() - weekStart.getDay());
               const weekLabel = `${weekStart.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}주`;
 
@@ -2262,9 +2262,9 @@
           }
 
           // Count student evaluations with scores 1-5 (excluding 0)
-          Object.entries(state.studentEvals).forEach(([key, eval]) => {
-            if (eval.score >= 1 && eval.score <= 5 && eval.timestamp >= startDate) {
-              const dateStr = new Date(eval.timestamp).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+          Object.entries(state.studentEvals).forEach(([key, evalData]) => {
+            if (evalData.score >= 1 && evalData.score <= 5 && evalData.timestamp >= startDate) {
+              const dateStr = new Date(evalData.timestamp).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
 
               if (dailyData[dateStr]) {
                 const studentId = key.split('-')[1];
