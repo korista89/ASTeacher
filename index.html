@@ -1388,6 +1388,7 @@
       alertedSchedules: {},
       recentSearches: [], // 최근 검색 기록 (최대 10개)
       taskSortBy: 'deadline', // 과제 정렬 기준 (deadline, priority, name, createdAt)
+      pointsHistory: [], // 포인트 이력 { id, timestamp, amount, reason, type: 'earn'|'spend'|'adjust' }
     };
 
     function loadState() {
@@ -1414,6 +1415,7 @@
           alertedSchedules: parsed.alertedSchedules || {},
           recentSearches: Array.isArray(parsed.recentSearches) ? parsed.recentSearches : [],
           taskSortBy: parsed.taskSortBy || DEFAULT_STATE.taskSortBy,
+          pointsHistory: Array.isArray(parsed.pointsHistory) ? parsed.pointsHistory : [],
         };
       } catch {
         return DEFAULT_STATE;
@@ -1934,6 +1936,8 @@
       const [showSearch, setShowSearch] = useState(false);
       const [editingBehavior, setEditingBehavior] = useState(null);
       const [showMobileMenu, setShowMobileMenu] = useState(false);
+      const [editingPointsRecord, setEditingPointsRecord] = useState(null);
+      const [newPointsRecord, setNewPointsRecord] = useState({ amount: 0, reason: '', type: 'earn' });
       const [behaviorFilter, setBehaviorFilter] = useState({ dateRange: 30, student: 'ALL', chartType: 'pbsProgress', behaviorType: 'ALL' });
       const [reportType, setReportType] = useState('weekly');
       const [lessonWeekStart, setLessonWeekStart] = useState(() => startOfWeek(new Date()));
@@ -2175,9 +2179,9 @@
 
           for (let i = 0; i < weeks; i++) {
             const weekEnd = new Date(now - i * 7 * 24 * 60 * 60 * 1000);
-            const weekStart = new Date(weekEnd - 6 * 24 * 60 * 60 * 1000);
-            const weekLabel = `${weekStart.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}`;
-            weeklyData[weekLabel] = { start: weekStart.getTime(), end: weekEnd.getTime() };
+            const weekStart = startOfWeek(weekEnd);
+            const weekLabel = getWeekLabel(weekStart);
+            weeklyData[weekLabel] = { start: weekStart.getTime(), end: addDays(weekStart, 6).getTime() };
             students.forEach(s => weeklyData[weekLabel][s] = 0);
             weeklyData[weekLabel]['학급 합계'] = 0;
           }
@@ -2295,7 +2299,7 @@
           }
 
         } else if (behaviorFilter.chartType === 'period') {
-          // Period distribution (교시별 - periods 1-7 only)
+          // Period distribution (교시별 행동 발생 분포 - 표적행동 빈도)
           const periods = ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시', '7교시'];
           const periodData = {};
           periods.forEach(period => {
@@ -2304,7 +2308,11 @@
             periodData[period]['학급 합계'] = 0;
           });
 
+          // Filter for TARGET behaviors and aggregate by period
           filteredData.forEach(b => {
+            // Filter for target behavior (표적행동) - can be adjusted to include all behavior types if needed
+            if (b.behaviorType !== 'TARGET') return;
+
             const hour = new Date(b.timestamp).getHours();
             let period = null;
             if (hour >= 9 && hour < 10) period = '1교시';
@@ -2316,6 +2324,7 @@
             else if (hour >= 15 && hour < 16) period = '7교시';
 
             if (period && periodData[period]) {
+              // Use the frequency value (0-5) directly to show actual behavior occurrence count
               const freq = typeof b.frequency === 'number' ? b.frequency : 1;
               if (students.includes(b.studentName)) {
                 periodData[period][b.studentName] += freq;
@@ -2370,8 +2379,9 @@
             : Math.ceil(behaviorFilter.dateRange / 7);
 
           for (let i = 0; i < weekCount; i++) {
-            const weekStart = new Date(now - i * 7 * 24 * 60 * 60 * 1000);
-            const weekLabel = `${weekStart.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}주`;
+            const weekEnd = new Date(now - i * 7 * 24 * 60 * 60 * 1000);
+            const weekStart = startOfWeek(weekEnd);
+            const weekLabel = getWeekLabel(weekStart);
             weeklyData[weekLabel] = {};
             students.forEach(s => weeklyData[weekLabel][s] = 0);
             weeklyData[weekLabel]['학급 합계'] = 0;
@@ -2380,9 +2390,8 @@
           // Count student evaluations with scores 3, 4, 5
           Object.entries(state.studentEvals).forEach(([key, evalData]) => {
             if (evalData.score >= 3 && evalData.score <= 5 && evalData.timestamp >= startDate) {
-              const weekStart = new Date(evalData.timestamp);
-              weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-              const weekLabel = `${weekStart.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}주`;
+              const weekStart = startOfWeek(new Date(evalData.timestamp));
+              const weekLabel = getWeekLabel(weekStart);
 
               if (weeklyData[weekLabel]) {
                 const studentId = key.split('-')[1];
@@ -2440,8 +2449,9 @@
             : Math.ceil(behaviorFilter.dateRange / 7);
 
           for (let i = 0; i < weekCount; i++) {
-            const weekStart = new Date(now - i * 7 * 24 * 60 * 60 * 1000);
-            const weekLabel = `${weekStart.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}주`;
+            const weekEnd = new Date(now - i * 7 * 24 * 60 * 60 * 1000);
+            const weekStart = startOfWeek(weekEnd);
+            const weekLabel = getWeekLabel(weekStart);
             weeklyData[weekLabel] = {};
             students.forEach(s => weeklyData[weekLabel][s] = 0);
             weeklyData[weekLabel]['학급 합계'] = 0;
@@ -2450,9 +2460,8 @@
           // Count student evaluations with scores 1-5 (excluding 0)
           Object.entries(state.studentEvals).forEach(([key, evalData]) => {
             if (evalData.score >= 1 && evalData.score <= 5 && evalData.timestamp >= startDate) {
-              const weekStart = new Date(evalData.timestamp);
-              weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-              const weekLabel = `${weekStart.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}주`;
+              const weekStart = startOfWeek(new Date(evalData.timestamp));
+              const weekLabel = getWeekLabel(weekStart);
 
               if (weeklyData[weekLabel]) {
                 const studentId = key.split('-')[1];
@@ -2585,13 +2594,14 @@
 
           // 주차 레이블 생성
           for (let i = 0; i < weekCount; i++) {
-            const weekStart = new Date(now - i * 7 * 24 * 60 * 60 * 1000);
-            const weekLabel = `${weekStart.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}주`;
+            const weekEnd = new Date(now - i * 7 * 24 * 60 * 60 * 1000);
+            const weekStart = startOfWeek(weekEnd);
+            const weekLabel = getWeekLabel(weekStart);
 
             Object.keys(weeklyData).forEach(key => {
               weeklyData[key][weekLabel] = {
-                start: weekStart.getTime() - 6 * 24 * 60 * 60 * 1000,
-                end: weekStart.getTime(),
+                start: weekStart.getTime(),
+                end: addDays(weekStart, 6).getTime(),
                 value: 0
               };
             });
@@ -2667,14 +2677,65 @@
               borderDash: [5, 5]
             }
           ];
+
+        } else if (behaviorFilter.chartType === 'studentGoalAchievement') {
+          // Student-wise lesson goal achievement frequency (기간 내 학생별 수업목표 도달 빈도)
+          const studentData = {};
+          students.forEach(s => studentData[s] = 0);
+
+          // Count student evaluations with scores 3, 4, 5
+          Object.entries(state.studentEvals).forEach(([key, evalData]) => {
+            if (evalData.score >= 3 && evalData.score <= 5 && evalData.timestamp >= startDate) {
+              const studentId = key.split('-')[1];
+              if (students.includes(studentId)) {
+                studentData[studentId]++;
+              }
+            }
+          });
+
+          labels = students;
+
+          // Single dataset showing all students as a bar chart
+          datasets.push({
+            label: '수업목표 도달 횟수 (3~5점)',
+            data: labels.map(label => studentData[label]),
+            backgroundColor: students.map(s => studentColors[s] + '80'), // 50% opacity
+            borderColor: students.map(s => studentColors[s]),
+            borderWidth: 2,
+          });
+
+        } else if (behaviorFilter.chartType === 'studentBehaviorFreq') {
+          // Student-wise behavior occurrence frequency (기간 내 학생별 행동 발생 빈도)
+          const studentData = {};
+          students.forEach(s => studentData[s] = 0);
+
+          // Sum up behavior frequencies for each student
+          filteredData.forEach(b => {
+            if (students.includes(b.studentName)) {
+              const freq = typeof b.frequency === 'number' ? b.frequency : 1;
+              studentData[b.studentName] += freq;
+            }
+          });
+
+          labels = students;
+
+          // Single dataset showing all students as a bar chart
+          datasets.push({
+            label: '행동 발생 횟수',
+            data: labels.map(label => studentData[label]),
+            backgroundColor: students.map(s => studentColors[s] + '80'), // 50% opacity
+            borderColor: students.map(s => studentColors[s]),
+            borderWidth: 2,
+          });
         }
 
         // Create or update chart
         if (lineChartRef.current) {
           lineChartRef.current.destroy();
         }
+        const chartType = (behaviorFilter.chartType === 'studentGoalAchievement' || behaviorFilter.chartType === 'studentBehaviorFreq') ? 'bar' : 'line';
         lineChartRef.current = new Chart(canvas, {
-          type: 'line',
+          type: chartType,
           data: {
             labels: labels,
             datasets: datasets
@@ -3007,16 +3068,102 @@
           const newPoints = Math.max(0, (p.points || 0) + pointsToAdd);
           const newLevel = Math.floor(newPoints / 100) + 1;
 
+          // Create points history record if points were added/removed
+          const newPointsHistory = pointsToAdd !== 0 ? [
+            {
+              id: Date.now(),
+              timestamp: nowMs(),
+              amount: pointsToAdd,
+              reason: `수업 평가 (${studentId}, ${score}점)`,
+              type: pointsToAdd > 0 ? 'earn' : 'adjust'
+            },
+            ...p.pointsHistory
+          ] : p.pointsHistory;
+
           return {
             ...p,
             points: newPoints,
             level: newLevel,
+            pointsHistory: newPointsHistory,
             studentEvals: {
               ...p.studentEvals,
               [`${lessonId}-${studentId}`]: { score, memo, updatedAt: nowMs(), timestamp }
             }
           };
         });
+      };
+
+      // 포인트 이력 관리 함수
+      const addPointsRecord = (amount, reason, type = 'adjust') => {
+        const record = {
+          id: Date.now(),
+          timestamp: nowMs(),
+          amount: amount,
+          reason: reason || '',
+          type: type // 'earn', 'spend', 'adjust'
+        };
+
+        setState(p => {
+          const newPoints = Math.max(0, p.points + amount);
+          const newLevel = Math.floor(newPoints / 100) + 1;
+          return {
+            ...p,
+            points: newPoints,
+            level: newLevel,
+            pointsHistory: [record, ...p.pointsHistory]
+          };
+        });
+
+        setShowAlert({
+          title: amount > 0 ? '✅ 포인트 획득' : '💸 포인트 사용',
+          message: `${Math.abs(amount)}P ${amount > 0 ? '획득' : '사용'}: ${reason}`
+        });
+        setTimeout(() => setShowAlert(null), 3000);
+      };
+
+      const editPointsRecord = (id, amount, reason) => {
+        setState(p => {
+          const oldRecord = p.pointsHistory.find(r => r.id === id);
+          if (!oldRecord) return p;
+
+          const pointsDiff = amount - oldRecord.amount;
+          const newPoints = Math.max(0, p.points + pointsDiff);
+          const newLevel = Math.floor(newPoints / 100) + 1;
+
+          return {
+            ...p,
+            points: newPoints,
+            level: newLevel,
+            pointsHistory: p.pointsHistory.map(r =>
+              r.id === id ? { ...r, amount, reason } : r
+            )
+          };
+        });
+
+        setShowAlert({ title: '✅ 수정 완료', message: '포인트 기록이 수정되었습니다.' });
+        setTimeout(() => setShowAlert(null), 3000);
+      };
+
+      const deletePointsRecord = (id) => {
+        if (!confirm('정말 삭제하시겠습니까?')) return;
+
+        setState(p => {
+          const record = p.pointsHistory.find(r => r.id === id);
+          if (!record) return p;
+
+          const newPoints = Math.max(0, p.points - record.amount);
+          const newLevel = Math.floor(newPoints / 100) + 1;
+
+          return {
+            ...p,
+            points: newPoints,
+            level: newLevel,
+            pointsHistory: p.pointsHistory.filter(r => r.id !== id)
+          };
+        });
+
+        setShowAlert({ title: '🗑️ 삭제 완료', message: '포인트 기록이 삭제되었습니다.' });
+        setTimeout(() => setShowAlert(null), 3000);
       };
 
       // 수업 및 평가 통합 CSV 내보내기
@@ -4865,7 +5012,7 @@
                 </div>
               </div>
 
-              {/* 포인트 조정 섹션 */}
+              {/* 포인트 기록 추가 섹션 */}
               <div style={{
                 padding: 20,
                 background: 'rgba(0,0,0,0.2)',
@@ -4874,107 +5021,70 @@
                 marginBottom: 24,
               }}>
                 <h3 style={{ fontSize: 18, fontWeight: 700, color: 'white', marginBottom: 16 }}>
-                  ⚙️ 포인트 조정
+                  ➕ 포인트 기록 추가
                 </h3>
 
                 <div style={{ display: 'grid', gap: 16 }}>
                   <div className="form-field">
-                    <label style={{ fontWeight: 700, color: 'rgba(255,255,255,0.8)' }}>포인트 변경</label>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <input
-                        type="number"
-                        placeholder="포인트 입력"
-                        id="pointsInput"
-                        className="form-control"
-                        style={{ flex: 1 }}
-                      />
-                      <button
-                        style={{
-                          padding: '10px 16px',
-                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                          border: 'none',
-                          borderRadius: 8,
-                          color: 'white',
-                          fontSize: 13,
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                        }}
-                        onClick={() => {
-                          const input = document.getElementById('pointsInput');
-                          const value = parseInt(input.value) || 0;
-                          if (value !== 0) {
-                            setState(p => ({ ...p, points: p.points + value }));
-                            setShowAlert({
-                              title: value > 0 ? '✅ 포인트 추가' : '⚠️ 포인트 차감',
-                              message: `${Math.abs(value)}포인트가 ${value > 0 ? '추가' : '차감'}되었습니다.`
-                            });
-                            setTimeout(() => setShowAlert(null), 3000);
-                            input.value = '';
-                          }
-                        }}
-                      >
-                        ➕ 추가
-                      </button>
-                      <button
-                        style={{
-                          padding: '10px 16px',
-                          background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                          border: 'none',
-                          borderRadius: 8,
-                          color: 'white',
-                          fontSize: 13,
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                        }}
-                        onClick={() => {
-                          const input = document.getElementById('pointsInput');
-                          const value = parseInt(input.value) || 0;
-                          if (value !== 0) {
-                            setState(p => ({ ...p, points: Math.max(0, p.points - value) }));
-                            setShowAlert({
-                              title: '⚠️ 포인트 차감',
-                              message: `${value}포인트가 차감되었습니다.`
-                            });
-                            setTimeout(() => setShowAlert(null), 3000);
-                            input.value = '';
-                          }
-                        }}
-                      >
-                        ➖ 차감
-                      </button>
-                    </div>
+                    <label style={{ fontWeight: 700, color: 'rgba(255,255,255,0.8)' }}>유형</label>
+                    <select
+                      value={newPointsRecord.type}
+                      onChange={(e) => setNewPointsRecord({ ...newPointsRecord, type: e.target.value })}
+                      className="form-control"
+                    >
+                      <option value="earn">획득 (녹색)</option>
+                      <option value="spend">사용 (빨간색)</option>
+                      <option value="adjust">조정 (노란색)</option>
+                    </select>
                   </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
-                    {[10, 50, 100, 500].map(amount => (
-                      <button
-                        key={amount}
-                        style={{
-                          padding: '12px',
-                          background: 'rgba(251, 191, 36, 0.2)',
-                          border: '1px solid rgba(251, 191, 36, 0.3)',
-                          borderRadius: 8,
-                          color: '#fbbf24',
-                          fontSize: 14,
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                        }}
-                        onClick={() => {
-                          setState(p => ({ ...p, points: p.points + amount }));
-                          setShowAlert({
-                            title: '✅ 포인트 추가',
-                            message: `${amount}포인트가 추가되었습니다.`
-                          });
-                          setTimeout(() => setShowAlert(null), 3000);
-                        }}
-                      >
-                        +{amount}P
-                      </button>
-                    ))}
+                  <div className="form-field">
+                    <label style={{ fontWeight: 700, color: 'rgba(255,255,255,0.8)' }}>포인트</label>
+                    <input
+                      type="number"
+                      placeholder="포인트 입력"
+                      value={newPointsRecord.amount || ''}
+                      onChange={(e) => setNewPointsRecord({ ...newPointsRecord, amount: parseInt(e.target.value) || 0 })}
+                      className="form-control"
+                    />
                   </div>
+                  <div className="form-field">
+                    <label style={{ fontWeight: 700, color: 'rgba(255,255,255,0.8)' }}>사유</label>
+                    <input
+                      type="text"
+                      placeholder="사유 입력 (예: 과제 완료, 행동 개선, 보상 교환)"
+                      value={newPointsRecord.reason}
+                      onChange={(e) => setNewPointsRecord({ ...newPointsRecord, reason: e.target.value })}
+                      className="form-control"
+                    />
+                  </div>
+                  <button
+                    style={{
+                      padding: '12px 20px',
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      border: 'none',
+                      borderRadius: 8,
+                      color: 'white',
+                      fontSize: 14,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                    onClick={() => {
+                      if (!newPointsRecord.reason.trim()) {
+                        alert('사유를 입력해주세요.');
+                        return;
+                      }
+                      if (newPointsRecord.amount === 0) {
+                        alert('포인트를 입력해주세요.');
+                        return;
+                      }
+                      const actualAmount = newPointsRecord.type === 'spend' ? -Math.abs(newPointsRecord.amount) : newPointsRecord.amount;
+                      addPointsRecord(actualAmount, newPointsRecord.reason, newPointsRecord.type);
+                      setNewPointsRecord({ amount: 0, reason: '', type: 'earn' });
+                    }}
+                  >
+                    ✅ 기록 추가
+                  </button>
                 </div>
               </div>
 
@@ -4986,19 +5096,99 @@
                 border: '1px solid rgba(255,255,255,0.1)',
               }}>
                 <h3 style={{ fontSize: 18, fontWeight: 700, color: 'white', marginBottom: 16 }}>
-                  📊 포인트 획득 이력
+                  📜 포인트 이력
                 </h3>
-                <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)' }}>
-                  <div style={{ marginBottom: 12 }}>
-                    • 집중 성공: +100 포인트
+
+                {state.pointsHistory.length === 0 ? (
+                  <div style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.5)' }}>
+                    포인트 이력이 없습니다.
                   </div>
-                  <div style={{ marginBottom: 12 }}>
-                    • 마감일 전 과제 완료: +100 포인트
+                ) : (
+                  <div style={{ display: 'grid', gap: 12, maxHeight: 500, overflowY: 'auto' }}>
+                    {state.pointsHistory.map(record => (
+                      <div
+                        key={record.id}
+                        style={{
+                          padding: 16,
+                          borderRadius: 10,
+                          background: 'rgba(0,0,0,0.3)',
+                          border: `2px solid ${
+                            record.type === 'earn' ? '#10b981' :
+                            record.type === 'spend' ? '#ef4444' :
+                            '#f59e0b'
+                          }40`,
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                            <span style={{
+                              fontSize: 18,
+                              fontWeight: 900,
+                              color: record.amount > 0 ? '#10b981' : '#ef4444'
+                            }}>
+                              {record.amount > 0 ? '+' : ''}{record.amount}P
+                            </span>
+                            <span style={{
+                              fontSize: 10,
+                              padding: '2px 8px',
+                              borderRadius: 4,
+                              background: record.type === 'earn' ? '#10b98140' :
+                                         record.type === 'spend' ? '#ef444440' :
+                                         '#f59e0b40',
+                              color: record.type === 'earn' ? '#10b981' :
+                                     record.type === 'spend' ? '#ef4444' :
+                                     '#f59e0b',
+                              fontWeight: 700,
+                            }}>
+                              {record.type === 'earn' ? '획득' : record.type === 'spend' ? '사용' : '조정'}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 14, color: 'white', marginBottom: 4 }}>
+                            {record.reason}
+                          </div>
+                          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
+                            {new Date(record.timestamp).toLocaleString('ko-KR')}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button
+                            style={{
+                              padding: '8px 12px',
+                              background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                              border: 'none',
+                              borderRadius: 6,
+                              color: 'white',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                            onClick={() => setEditingPointsRecord(record)}
+                          >
+                            ✏️ 수정
+                          </button>
+                          <button
+                            style={{
+                              padding: '8px 12px',
+                              background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                              border: 'none',
+                              borderRadius: 6,
+                              color: 'white',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                            onClick={() => deletePointsRecord(record.id)}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, marginTop: 16 }}>
-                    포인트는 집중 타이머를 성공적으로 완료하거나 과제를 마감일 전에 완료하면 자동으로 누적됩니다.
-                  </div>
-                </div>
+                )}
               </div>
             </div>
           )}
@@ -5374,6 +5564,9 @@
                   <option value="dayOfWeek">요일별 행동 발생 분포</option>
                   <option value="period">교시별 행동 발생 분포</option>
                   <option value="weeklyGoalAchievement">주별 수업목표 도달 빈도</option>
+                  <option disabled>────────────</option>
+                  <option value="studentGoalAchievement">학생별 수업목표 도달 빈도</option>
+                  <option value="studentBehaviorFreq">학생별 행동 발생 빈도</option>
                 </select>
                 <select
                   value={behaviorFilter.dateRange}
@@ -5493,8 +5686,10 @@
                         behaviorFilter.chartType === 'dayOfWeek' ? '요일별 행동 발생 분포' :
                         behaviorFilter.chartType === 'period' ? '교시별 행동 발생 분포' :
                         behaviorFilter.chartType === 'weeklyGoalAchievement' ? '주별 수업목표 도달 빈도' :
+                        behaviorFilter.chartType === 'studentGoalAchievement' ? '학생별 수업목표 도달 빈도' :
+                        behaviorFilter.chartType === 'studentBehaviorFreq' ? '학생별 행동 발생 빈도' :
                         '차트'
-                      }{behaviorFilter.chartType !== 'pbsProgress' ? ' (학생별 추이)' : ''}
+                      }{behaviorFilter.chartType !== 'pbsProgress' && behaviorFilter.chartType !== 'studentGoalAchievement' && behaviorFilter.chartType !== 'studentBehaviorFreq' ? ' (학생별 추이)' : ''}
                     </h3>
                     <canvas id="behaviorLineChart"></canvas>
 
@@ -5677,7 +5872,19 @@
                               <div
                                 key={score}
                                 className={`eval-cell eval-score-${score} ${currentScore === score ? 'selected' : ''}`}
-                                onClick={() => saveStudentEval(editingLesson.id, studentId, score)}
+                                onClick={() => {
+                                  // Toggle: if clicking the same score, deselect it
+                                  if (currentScore === score) {
+                                    // Remove the evaluation
+                                    setState(p => {
+                                      const newEvals = { ...p.studentEvals };
+                                      delete newEvals[evalKey];
+                                      return { ...p, studentEvals: newEvals };
+                                    });
+                                  } else {
+                                    saveStudentEval(editingLesson.id, studentId, score);
+                                  }
+                                }}
                                 style={{
                                   cursor: 'pointer',
                                   fontWeight: currentScore === score ? 900 : 600,
@@ -5714,7 +5921,7 @@
                           <div className="eval-cell" style={{ fontWeight: 900, background: 'rgba(139, 92, 246, 0.3)', color: '#c4b5fd' }}>학생</div>
                           {[0, 1, 2, 3, 4, 5].map(score => (
                             <div key={score} className="eval-cell" style={{ fontWeight: 900, background: 'rgba(139, 92, 246, 0.3)', color: '#c4b5fd', fontSize: 11 }}>
-                              {score}점
+                              {score === 5 ? '5회 이상' : `${score}회`}
                             </div>
                           ))}
                           {[1, 2, 3, 4, 5, 6, 7].map(studentNum => {
@@ -5730,7 +5937,25 @@
                                   <div
                                     key={score}
                                     className={`eval-cell ${currentFreq === score ? 'selected' : ''}`}
-                                    onClick={() => saveBehaviorRecordQuick(lessonDate, studentId, typeKey, score, editingLesson.id)}
+                                    onClick={() => {
+                                      // Toggle: if clicking the same frequency, deselect it
+                                      if (currentFreq === score) {
+                                        // Remove the behavior record
+                                        const logDate = new Date(lessonDate);
+                                        setState(p => ({
+                                          ...p,
+                                          behaviorLog: p.behaviorLog.filter(log => {
+                                            const isSame = isSameDay(new Date(log.timestamp), logDate) &&
+                                                           log.studentName === studentId &&
+                                                           log.behaviorType === typeKey &&
+                                                           (editingLesson.id ? log.lessonId === editingLesson.id : !log.lessonId);
+                                            return !isSame;
+                                          })
+                                        }));
+                                      } else {
+                                        saveBehaviorRecordQuick(lessonDate, studentId, typeKey, score, editingLesson.id);
+                                      }
+                                    }}
                                     style={{
                                       cursor: 'pointer',
                                       fontWeight: currentFreq === score ? 900 : 600,
@@ -6115,6 +6340,59 @@
                   <button
                     style={{ ...styles.btn2, padding: '12px 20px' }}
                     onClick={() => setEditingBehavior(null)}
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 포인트 기록 편집 모달 */}
+          {editingPointsRecord && (
+            <div className="modal-overlay" onClick={() => setEditingPointsRecord(null)}>
+              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                <h2 style={{ fontSize: 22, fontWeight: 800, color: 'white', marginBottom: 20 }}>
+                  ✏️ 포인트 기록 수정
+                </h2>
+
+                <div className="form-field">
+                  <label style={{ fontWeight: 700, color: 'rgba(255,255,255,0.8)' }}>포인트</label>
+                  <input
+                    type="number"
+                    value={editingPointsRecord.amount || ''}
+                    onChange={(e) => setEditingPointsRecord({ ...editingPointsRecord, amount: parseInt(e.target.value) || 0 })}
+                    className="form-control"
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label style={{ fontWeight: 700, color: 'rgba(255,255,255,0.8)' }}>사유</label>
+                  <input
+                    type="text"
+                    value={editingPointsRecord.reason}
+                    onChange={(e) => setEditingPointsRecord({ ...editingPointsRecord, reason: e.target.value })}
+                    className="form-control"
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+                  <button
+                    style={{ ...styles.btn, flex: 1 }}
+                    onClick={() => {
+                      if (!editingPointsRecord.reason.trim()) {
+                        alert('사유를 입력해주세요.');
+                        return;
+                      }
+                      editPointsRecord(editingPointsRecord.id, editingPointsRecord.amount, editingPointsRecord.reason);
+                      setEditingPointsRecord(null);
+                    }}
+                  >
+                    💾 저장
+                  </button>
+                  <button
+                    style={{ ...styles.btn2, padding: '12px 20px' }}
+                    onClick={() => setEditingPointsRecord(null)}
                   >
                     취소
                   </button>
