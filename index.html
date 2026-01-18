@@ -2066,6 +2066,372 @@
         setSearchResults(results.slice(0, 20)); // 최대 20개만 표시
       }, [searchQuery, state.lessons, state.tasks, state.schedules, state.behaviorLog]);
 
+      // Helper function to get frequency value from behavior
+      const getFrequency = (behavior) => typeof behavior.frequency === 'number' ? behavior.frequency : 1;
+
+      // Helper function to build datasets based on student filter
+      const buildDatasets = (labels, aggregatedData, students, studentFilter, studentColors) => {
+        const datasets = [];
+
+        if (studentFilter === 'ALL') {
+          students.forEach(student => {
+            datasets.push({
+              label: student,
+              data: labels.map(label => aggregatedData[label][student]),
+              borderColor: studentColors[student],
+              backgroundColor: 'transparent',
+              tension: 0.4,
+              borderWidth: 2,
+            });
+          });
+        } else if (studentFilter === 'CLASS_TOTAL') {
+          datasets.push({
+            label: '학급 합계',
+            data: labels.map(label => aggregatedData[label]['학급 합계']),
+            borderColor: studentColors['학급 합계'],
+            backgroundColor: 'transparent',
+            tension: 0.4,
+            borderWidth: 3,
+          });
+        } else {
+          datasets.push({
+            label: studentFilter,
+            data: labels.map(label => aggregatedData[label][studentFilter] || 0),
+            borderColor: studentColors[studentFilter],
+            backgroundColor: 'transparent',
+            tension: 0.4,
+            borderWidth: 2,
+          });
+        }
+
+        return datasets;
+      };
+
+      // Process daily chart data
+      const processDailyChart = (filteredData, students, now, startDate, dateRange) => {
+        const dailyData = {};
+        const dayCount = dateRange === 'march1'
+          ? Math.ceil((now - startDate) / (24 * 60 * 60 * 1000))
+          : dateRange;
+
+        for (let i = 0; i < dayCount; i++) {
+          const date = new Date(now - i * 24 * 60 * 60 * 1000);
+          const dateStr = date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+          dailyData[dateStr] = {};
+          students.forEach(s => dailyData[dateStr][s] = 0);
+          dailyData[dateStr]['학급 합계'] = 0;
+        }
+
+        filteredData.forEach(b => {
+          const dateStr = new Date(b.timestamp).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+          if (dailyData[dateStr]) {
+            const freq = getFrequency(b);
+            if (students.includes(b.studentName)) {
+              dailyData[dateStr][b.studentName] += freq;
+            }
+            dailyData[dateStr]['학급 합계'] += freq;
+          }
+        });
+
+        return { labels: Object.keys(dailyData).reverse(), data: dailyData };
+      };
+
+      // Process weekly chart data
+      const processWeeklyChart = (filteredData, students, now, dateRange) => {
+        const weeks = Math.ceil(dateRange / 7);
+        const weeklyData = {};
+
+        for (let i = 0; i < weeks; i++) {
+          const weekEnd = new Date(now - i * 7 * 24 * 60 * 60 * 1000);
+          const weekStart = startOfWeek(weekEnd);
+          const weekLabel = getWeekLabel(weekStart);
+          weeklyData[weekLabel] = { start: weekStart.getTime(), end: addDays(weekStart, 6).getTime() };
+          students.forEach(s => weeklyData[weekLabel][s] = 0);
+          weeklyData[weekLabel]['학급 합계'] = 0;
+        }
+
+        filteredData.forEach(b => {
+          Object.keys(weeklyData).forEach(weekLabel => {
+            const week = weeklyData[weekLabel];
+            if (b.timestamp >= week.start && b.timestamp <= week.end) {
+              const freq = getFrequency(b);
+              if (students.includes(b.studentName)) {
+                weeklyData[weekLabel][b.studentName] += freq;
+              }
+              weeklyData[weekLabel]['학급 합계'] += freq;
+            }
+          });
+        });
+
+        return { labels: Object.keys(weeklyData).reverse(), data: weeklyData };
+      };
+
+      // Process day of week chart data
+      const processDayOfWeekChart = (filteredData, students) => {
+        const daysOfWeek = ['월', '화', '수', '목', '금'];
+        const dayData = {};
+        daysOfWeek.forEach(day => {
+          dayData[day] = {};
+          students.forEach(s => dayData[day][s] = 0);
+          dayData[day]['학급 합계'] = 0;
+        });
+
+        filteredData.forEach(b => {
+          const dayOfWeek = new Date(b.timestamp).getDay();
+          if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+            const day = daysOfWeek[dayOfWeek - 1];
+            const freq = getFrequency(b);
+            if (students.includes(b.studentName)) {
+              dayData[day][b.studentName] += freq;
+            }
+            dayData[day]['학급 합계'] += freq;
+          }
+        });
+
+        return { labels: daysOfWeek, data: dayData };
+      };
+
+      // Process period chart data
+      const processPeriodChart = (filteredData, students) => {
+        const periods = ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시', '7교시'];
+        const periodData = {};
+        periods.forEach(period => {
+          periodData[period] = {};
+          students.forEach(s => periodData[period][s] = 0);
+          periodData[period]['학급 합계'] = 0;
+        });
+
+        filteredData.forEach(b => {
+          if (b.behaviorType !== 'TARGET') return;
+
+          const hour = new Date(b.timestamp).getHours();
+          const periodMap = { 9: '1교시', 10: '2교시', 11: '3교시', 12: '4교시', 13: '5교시', 14: '6교시', 15: '7교시' };
+          const period = periodMap[hour];
+
+          if (period && periodData[period]) {
+            const freq = getFrequency(b);
+            if (students.includes(b.studentName)) {
+              periodData[period][b.studentName] += freq;
+            }
+            periodData[period]['학급 합계'] += freq;
+          }
+        });
+
+        return { labels: periods, data: periodData };
+      };
+
+      // Process weekly evaluation data
+      const processWeeklyEvalChart = (studentEvals, students, now, startDate, dateRange, minScore, maxScore) => {
+        const weeklyData = {};
+        const weekCount = dateRange === 'march1'
+          ? Math.ceil((now - startDate) / (7 * 24 * 60 * 60 * 1000))
+          : Math.ceil(dateRange / 7);
+
+        for (let i = 0; i < weekCount; i++) {
+          const weekEnd = new Date(now - i * 7 * 24 * 60 * 60 * 1000);
+          const weekStart = startOfWeek(weekEnd);
+          const weekLabel = getWeekLabel(weekStart);
+          weeklyData[weekLabel] = {};
+          students.forEach(s => weeklyData[weekLabel][s] = 0);
+          weeklyData[weekLabel]['학급 합계'] = 0;
+        }
+
+        Object.entries(studentEvals).forEach(([key, evalData]) => {
+          if (evalData.score >= minScore && evalData.score <= maxScore && evalData.timestamp >= startDate) {
+            const weekStart = startOfWeek(new Date(evalData.timestamp));
+            const weekLabel = getWeekLabel(weekStart);
+
+            if (weeklyData[weekLabel]) {
+              const studentId = key.split('-')[1];
+              if (students.includes(studentId)) {
+                weeklyData[weekLabel][studentId]++;
+              }
+              weeklyData[weekLabel]['학급 합계']++;
+            }
+          }
+        });
+
+        return { labels: Object.keys(weeklyData).reverse(), data: weeklyData };
+      };
+
+      // Process daily evaluation data
+      const processDailyEvalChart = (studentEvals, students, now, startDate, dateRange) => {
+        const dailyData = {};
+        const dayCount = dateRange === 'march1'
+          ? Math.ceil((now - startDate) / (24 * 60 * 60 * 1000))
+          : dateRange;
+
+        for (let i = 0; i < dayCount; i++) {
+          const date = new Date(now - i * 24 * 60 * 60 * 1000);
+          const dateStr = date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+          dailyData[dateStr] = {};
+          students.forEach(s => dailyData[dateStr][s] = 0);
+          dailyData[dateStr]['학급 합계'] = 0;
+        }
+
+        Object.entries(studentEvals).forEach(([key, evalData]) => {
+          if (evalData.score >= 1 && evalData.score <= 5 && evalData.timestamp >= startDate) {
+            const dateStr = new Date(evalData.timestamp).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+
+            if (dailyData[dateStr]) {
+              const studentId = key.split('-')[1];
+              if (students.includes(studentId)) {
+                dailyData[dateStr][studentId]++;
+              }
+              dailyData[dateStr]['학급 합계']++;
+            }
+          }
+        });
+
+        return { labels: Object.keys(dailyData).reverse(), data: dailyData };
+      };
+
+      // Process PBS progress chart (behavior types + goal achievement)
+      const processPbsProgressChart = (filteredData, studentEvals, studentFilter, now, startDate, dateRange) => {
+        const weekCount = dateRange === 'march1'
+          ? Math.ceil((now - startDate) / (7 * 24 * 60 * 60 * 1000))
+          : Math.ceil(dateRange / 7);
+
+        const weeklyData = {
+          TARGET: {},      // 표적행동
+          REPLACEMENT: {}, // 대체행동
+          POSITIVE: {},    // 긍정행동
+          GOAL: {}         // 목표달성 (3~5점)
+        };
+
+        for (let i = 0; i < weekCount; i++) {
+          const weekEnd = new Date(now - i * 7 * 24 * 60 * 60 * 1000);
+          const weekStart = startOfWeek(weekEnd);
+          const weekLabel = getWeekLabel(weekStart);
+
+          Object.keys(weeklyData).forEach(key => {
+            weeklyData[key][weekLabel] = {
+              start: weekStart.getTime(),
+              end: addDays(weekStart, 6).getTime(),
+              value: 0
+            };
+          });
+        }
+
+        filteredData.forEach(b => {
+          Object.keys(weeklyData).forEach(weekLabel => {
+            const week = weeklyData[b.behaviorType]?.[weekLabel];
+            if (week && b.timestamp >= week.start && b.timestamp <= week.end) {
+              const freq = getFrequency(b);
+              if (studentFilter === 'ALL' || studentFilter === 'CLASS_TOTAL' || b.studentName === studentFilter) {
+                week.value += freq;
+              }
+            }
+          });
+        });
+
+        Object.entries(studentEvals).forEach(([key, evalData]) => {
+          if (evalData.score >= 3 && evalData.score <= 5 && evalData.timestamp >= startDate) {
+            const studentId = key.split('-')[1];
+            if (studentFilter === 'ALL' || studentFilter === 'CLASS_TOTAL' || studentId === studentFilter) {
+              Object.keys(weeklyData.GOAL).forEach(weekLabel => {
+                const week = weeklyData.GOAL[weekLabel];
+                if (evalData.timestamp >= week.start && evalData.timestamp <= week.end) {
+                  week.value++;
+                }
+              });
+            }
+          }
+        });
+
+        const labels = Object.keys(weeklyData.TARGET).reverse();
+        const datasets = [
+          {
+            label: '🎯 표적행동 (감소 필요)',
+            data: labels.map(label => weeklyData.TARGET[label]?.value || 0),
+            borderColor: '#ef4444',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            tension: 0.4,
+            borderWidth: 3,
+            fill: true
+          },
+          {
+            label: '✨ 대체행동 (증가 목표)',
+            data: labels.map(label => weeklyData.REPLACEMENT[label]?.value || 0),
+            borderColor: '#10b981',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            tension: 0.4,
+            borderWidth: 3,
+            fill: true
+          },
+          {
+            label: '👍 긍정행동 (증가 목표)',
+            data: labels.map(label => weeklyData.POSITIVE[label]?.value || 0),
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            tension: 0.4,
+            borderWidth: 3,
+            fill: true
+          },
+          {
+            label: '📊 목표달성 횟수 (3~5점)',
+            data: labels.map(label => weeklyData.GOAL[label]?.value || 0),
+            borderColor: '#a78bfa',
+            backgroundColor: 'rgba(167, 139, 250, 0.1)',
+            tension: 0.4,
+            borderWidth: 3,
+            fill: true,
+            borderDash: [5, 5]
+          }
+        ];
+
+        return { labels, datasets };
+      };
+
+      // Process student goal achievement chart (bar chart)
+      const processStudentGoalAchievementChart = (studentEvals, students, studentColors, startDate) => {
+        const studentData = {};
+        students.forEach(s => studentData[s] = 0);
+
+        Object.entries(studentEvals).forEach(([key, evalData]) => {
+          if (evalData.score >= 3 && evalData.score <= 5 && evalData.timestamp >= startDate) {
+            const studentId = key.split('-')[1];
+            if (students.includes(studentId)) {
+              studentData[studentId]++;
+            }
+          }
+        });
+
+        const labels = students;
+        const datasets = [{
+          label: '수업목표 도달 횟수 (3~5점)',
+          data: labels.map(label => studentData[label]),
+          backgroundColor: students.map(s => studentColors[s] + '80'),
+          borderColor: students.map(s => studentColors[s]),
+          borderWidth: 2,
+        }];
+
+        return { labels, datasets };
+      };
+
+      // Process student behavior frequency chart (bar chart)
+      const processStudentBehaviorFreqChart = (filteredData, students, studentColors) => {
+        const studentData = {};
+        students.forEach(s => studentData[s] = 0);
+
+        filteredData.forEach(b => {
+          if (students.includes(b.studentName)) {
+            studentData[b.studentName] += getFrequency(b);
+          }
+        });
+
+        const labels = students;
+        const datasets = [{
+          label: '행동 발생 횟수',
+          data: labels.map(label => studentData[label]),
+          backgroundColor: students.map(s => studentColors[s] + '80'),
+          borderColor: students.map(s => studentColors[s]),
+          borderWidth: 2,
+        }];
+
+        return { labels, datasets };
+      };
+
       useEffect(() => {
         if (view !== 'behaviorAnalytics') return;
         const canvas = document.getElementById('behaviorLineChart');
@@ -2092,20 +2458,20 @@
           '학급 합계': '#ffffff'
         };
 
-        // Filter data by date range, student, and behavior type
+        // Calculate date range
         const now = Date.now();
         let startDate;
         if (behaviorFilter.dateRange === 'march1') {
-          // March 1st of current year
-          const march1 = new Date(new Date().getFullYear(), 2, 1); // Month is 0-indexed
+          const march1 = new Date(new Date().getFullYear(), 2, 1);
           startDate = march1.getTime();
         } else {
           const rangeMs = behaviorFilter.dateRange * 24 * 60 * 60 * 1000;
           startDate = now - rangeMs;
         }
+
+        // Filter data by date range and student
         const filteredData = state.behaviorLog.filter(b => {
           if (b.timestamp < startDate) return false;
-          // Don't filter by student for ALL or CLASS_TOTAL - we need all data for aggregation
           if (behaviorFilter.student !== 'ALL' && behaviorFilter.student !== 'CLASS_TOTAL' && b.studentName !== behaviorFilter.student) return false;
           return true;
         });
@@ -2115,623 +2481,54 @@
 
         // Process data based on chart type
         if (behaviorFilter.chartType === 'daily') {
-          // Daily frequency
-          const dailyData = {};
-          const dayCount = behaviorFilter.dateRange === 'march1'
-            ? Math.ceil((now - startDate) / (24 * 60 * 60 * 1000))
-            : behaviorFilter.dateRange;
-          for (let i = 0; i < dayCount; i++) {
-            const date = new Date(now - i * 24 * 60 * 60 * 1000);
-            const dateStr = date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
-            dailyData[dateStr] = {};
-            students.forEach(s => dailyData[dateStr][s] = 0);
-            dailyData[dateStr]['학급 합계'] = 0;
-          }
-
-          filteredData.forEach(b => {
-            const dateStr = new Date(b.timestamp).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
-            if (dailyData[dateStr]) {
-              const freq = typeof b.frequency === 'number' ? b.frequency : 1;
-              if (students.includes(b.studentName)) {
-                dailyData[dateStr][b.studentName] += freq;
-              }
-              dailyData[dateStr]['학급 합계'] += freq;
-            }
-          });
-
-          labels = Object.keys(dailyData).reverse();
-
-          // Add datasets based on filter selection
-          if (behaviorFilter.student === 'ALL') {
-            // Show all individual students only
-            students.forEach(student => {
-              datasets.push({
-                label: student,
-                data: labels.map(label => dailyData[label][student]),
-                borderColor: studentColors[student],
-                backgroundColor: 'transparent',
-                tension: 0.4,
-                borderWidth: 2,
-              });
-            });
-          } else if (behaviorFilter.student === 'CLASS_TOTAL') {
-            // Show only class total
-            datasets.push({
-              label: '학급 합계',
-              data: labels.map(label => dailyData[label]['학급 합계']),
-              borderColor: studentColors['학급 합계'],
-              backgroundColor: 'transparent',
-              tension: 0.4,
-              borderWidth: 3,
-            });
-          } else {
-            // Show specific student only
-            const selectedStudent = behaviorFilter.student;
-            datasets.push({
-              label: selectedStudent,
-              data: labels.map(label => dailyData[label][selectedStudent] || 0),
-              borderColor: studentColors[selectedStudent],
-              backgroundColor: 'transparent',
-              tension: 0.4,
-              borderWidth: 2,
-            });
-          }
+          const result = processDailyChart(filteredData, students, now, startDate, behaviorFilter.dateRange);
+          labels = result.labels;
+          datasets = buildDatasets(labels, result.data, students, behaviorFilter.student, studentColors);
 
         } else if (behaviorFilter.chartType === 'weekly') {
-          // Weekly frequency
-          const weeks = Math.ceil(behaviorFilter.dateRange / 7);
-          const weeklyData = {};
-
-          for (let i = 0; i < weeks; i++) {
-            const weekEnd = new Date(now - i * 7 * 24 * 60 * 60 * 1000);
-            const weekStart = startOfWeek(weekEnd);
-            const weekLabel = getWeekLabel(weekStart);
-            weeklyData[weekLabel] = { start: weekStart.getTime(), end: addDays(weekStart, 6).getTime() };
-            students.forEach(s => weeklyData[weekLabel][s] = 0);
-            weeklyData[weekLabel]['학급 합계'] = 0;
-          }
-
-          filteredData.forEach(b => {
-            Object.keys(weeklyData).forEach(weekLabel => {
-              const week = weeklyData[weekLabel];
-              if (b.timestamp >= week.start && b.timestamp <= week.end) {
-                const freq = typeof b.frequency === 'number' ? b.frequency : 1;
-                if (students.includes(b.studentName)) {
-                  weeklyData[weekLabel][b.studentName] += freq;
-                }
-                weeklyData[weekLabel]['학급 합계'] += freq;
-              }
-            });
-          });
-
-          labels = Object.keys(weeklyData).reverse();
-
-          // Add datasets based on filter selection
-          if (behaviorFilter.student === 'ALL') {
-            // Show all individual students only
-            students.forEach(student => {
-              datasets.push({
-                label: student,
-                data: labels.map(label => weeklyData[label][student]),
-                borderColor: studentColors[student],
-                backgroundColor: 'transparent',
-                tension: 0.4,
-                borderWidth: 2,
-              });
-            });
-          } else if (behaviorFilter.student === 'CLASS_TOTAL') {
-            // Show only class total
-            datasets.push({
-              label: '학급 합계',
-              data: labels.map(label => weeklyData[label]['학급 합계']),
-              borderColor: studentColors['학급 합계'],
-              backgroundColor: 'transparent',
-              tension: 0.4,
-              borderWidth: 3,
-            });
-          } else {
-            // Show specific student only
-            const selectedStudent = behaviorFilter.student;
-            datasets.push({
-              label: selectedStudent,
-              data: labels.map(label => weeklyData[label][selectedStudent] || 0),
-              borderColor: studentColors[selectedStudent],
-              backgroundColor: 'transparent',
-              tension: 0.4,
-              borderWidth: 2,
-            });
-          }
+          const result = processWeeklyChart(filteredData, students, now, behaviorFilter.dateRange);
+          labels = result.labels;
+          datasets = buildDatasets(labels, result.data, students, behaviorFilter.student, studentColors);
 
         } else if (behaviorFilter.chartType === 'dayOfWeek') {
-          // Day of week distribution (Mon-Fri only)
-          const daysOfWeek = ['월', '화', '수', '목', '금'];
-          const dayData = {};
-          daysOfWeek.forEach(day => {
-            dayData[day] = {};
-            students.forEach(s => dayData[day][s] = 0);
-            dayData[day]['학급 합계'] = 0;
-          });
-
-          filteredData.forEach(b => {
-            const dayOfWeek = new Date(b.timestamp).getDay();
-            // Only include weekdays (Mon=1 to Fri=5)
-            if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-              const day = daysOfWeek[dayOfWeek - 1];
-              const freq = typeof b.frequency === 'number' ? b.frequency : 1;
-              if (students.includes(b.studentName)) {
-                dayData[day][b.studentName] += freq;
-              }
-              dayData[day]['학급 합계'] += freq;
-            }
-          });
-
-          labels = daysOfWeek;
-
-          // Add datasets based on filter selection
-          if (behaviorFilter.student === 'ALL') {
-            // Show all individual students only
-            students.forEach(student => {
-              datasets.push({
-                label: student,
-                data: labels.map(label => dayData[label][student]),
-                borderColor: studentColors[student],
-                backgroundColor: 'transparent',
-                tension: 0.4,
-                borderWidth: 2,
-              });
-            });
-          } else if (behaviorFilter.student === 'CLASS_TOTAL') {
-            // Show only class total
-            datasets.push({
-              label: '학급 합계',
-              data: labels.map(label => dayData[label]['학급 합계']),
-              borderColor: studentColors['학급 합계'],
-              backgroundColor: 'transparent',
-              tension: 0.4,
-              borderWidth: 3,
-            });
-          } else {
-            // Show specific student only
-            const selectedStudent = behaviorFilter.student;
-            datasets.push({
-              label: selectedStudent,
-              data: labels.map(label => dayData[label][selectedStudent] || 0),
-              borderColor: studentColors[selectedStudent],
-              backgroundColor: 'transparent',
-              tension: 0.4,
-              borderWidth: 2,
-            });
-          }
+          const result = processDayOfWeekChart(filteredData, students);
+          labels = result.labels;
+          datasets = buildDatasets(labels, result.data, students, behaviorFilter.student, studentColors);
 
         } else if (behaviorFilter.chartType === 'period') {
-          // Period distribution (교시별 행동 발생 분포 - 표적행동 빈도)
-          const periods = ['1교시', '2교시', '3교시', '4교시', '5교시', '6교시', '7교시'];
-          const periodData = {};
-          periods.forEach(period => {
-            periodData[period] = {};
-            students.forEach(s => periodData[period][s] = 0);
-            periodData[period]['학급 합계'] = 0;
-          });
-
-          // Filter for TARGET behaviors and aggregate by period
-          filteredData.forEach(b => {
-            // Filter for target behavior (표적행동) - can be adjusted to include all behavior types if needed
-            if (b.behaviorType !== 'TARGET') return;
-
-            const hour = new Date(b.timestamp).getHours();
-            let period = null;
-            if (hour >= 9 && hour < 10) period = '1교시';
-            else if (hour >= 10 && hour < 11) period = '2교시';
-            else if (hour >= 11 && hour < 12) period = '3교시';
-            else if (hour >= 12 && hour < 13) period = '4교시';
-            else if (hour >= 13 && hour < 14) period = '5교시';
-            else if (hour >= 14 && hour < 15) period = '6교시';
-            else if (hour >= 15 && hour < 16) period = '7교시';
-
-            if (period && periodData[period]) {
-              // Use the frequency value (0-5) directly to show actual behavior occurrence count
-              const freq = typeof b.frequency === 'number' ? b.frequency : 1;
-              if (students.includes(b.studentName)) {
-                periodData[period][b.studentName] += freq;
-              }
-              periodData[period]['학급 합계'] += freq;
-            }
-          });
-
-          labels = periods;
-
-          // Add datasets based on filter selection
-          if (behaviorFilter.student === 'ALL') {
-            // Show all individual students only
-            students.forEach(student => {
-              datasets.push({
-                label: student,
-                data: labels.map(label => periodData[label][student]),
-                borderColor: studentColors[student],
-                backgroundColor: 'transparent',
-                tension: 0.4,
-                borderWidth: 2,
-              });
-            });
-          } else if (behaviorFilter.student === 'CLASS_TOTAL') {
-            // Show only class total
-            datasets.push({
-              label: '학급 합계',
-              data: labels.map(label => periodData[label]['학급 합계']),
-              borderColor: studentColors['학급 합계'],
-              backgroundColor: 'transparent',
-              tension: 0.4,
-              borderWidth: 3,
-            });
-          } else {
-            // Show specific student only
-            const selectedStudent = behaviorFilter.student;
-            datasets.push({
-              label: selectedStudent,
-              data: labels.map(label => periodData[label][selectedStudent] || 0),
-              borderColor: studentColors[selectedStudent],
-              backgroundColor: 'transparent',
-              tension: 0.4,
-              borderWidth: 2,
-            });
-          }
+          const result = processPeriodChart(filteredData, students);
+          labels = result.labels;
+          datasets = buildDatasets(labels, result.data, students, behaviorFilter.student, studentColors);
 
         } else if (behaviorFilter.chartType === 'weeklyGoalAchievement') {
-          // Weekly goal achievement (scores 3, 4, 5)
-          const weeklyData = {};
-          const weekCount = behaviorFilter.dateRange === 'march1'
-            ? Math.ceil((now - startDate) / (7 * 24 * 60 * 60 * 1000))
-            : Math.ceil(behaviorFilter.dateRange / 7);
-
-          for (let i = 0; i < weekCount; i++) {
-            const weekEnd = new Date(now - i * 7 * 24 * 60 * 60 * 1000);
-            const weekStart = startOfWeek(weekEnd);
-            const weekLabel = getWeekLabel(weekStart);
-            weeklyData[weekLabel] = {};
-            students.forEach(s => weeklyData[weekLabel][s] = 0);
-            weeklyData[weekLabel]['학급 합계'] = 0;
-          }
-
-          // Count student evaluations with scores 3, 4, 5
-          Object.entries(state.studentEvals).forEach(([key, evalData]) => {
-            if (evalData.score >= 3 && evalData.score <= 5 && evalData.timestamp >= startDate) {
-              const weekStart = startOfWeek(new Date(evalData.timestamp));
-              const weekLabel = getWeekLabel(weekStart);
-
-              if (weeklyData[weekLabel]) {
-                const studentId = key.split('-')[1];
-                if (students.includes(studentId)) {
-                  weeklyData[weekLabel][studentId]++;
-                }
-                weeklyData[weekLabel]['학급 합계']++;
-              }
-            }
-          });
-
-          labels = Object.keys(weeklyData).reverse();
-
-          // Add datasets based on filter selection
-          if (behaviorFilter.student === 'ALL') {
-            // Show all individual students only
-            students.forEach(student => {
-              datasets.push({
-                label: student,
-                data: labels.map(label => weeklyData[label][student]),
-                borderColor: studentColors[student],
-                backgroundColor: 'transparent',
-                tension: 0.4,
-                borderWidth: 2,
-              });
-            });
-          } else if (behaviorFilter.student === 'CLASS_TOTAL') {
-            // Show only class total
-            datasets.push({
-              label: '학급 합계',
-              data: labels.map(label => weeklyData[label]['학급 합계']),
-              borderColor: studentColors['학급 합계'],
-              backgroundColor: 'transparent',
-              tension: 0.4,
-              borderWidth: 3,
-            });
-          } else {
-            // Show specific student only
-            const selectedStudent = behaviorFilter.student;
-            datasets.push({
-              label: selectedStudent,
-              data: labels.map(label => weeklyData[label][selectedStudent] || 0),
-              borderColor: studentColors[selectedStudent],
-              backgroundColor: 'transparent',
-              tension: 0.4,
-              borderWidth: 2,
-            });
-          }
+          const result = processWeeklyEvalChart(state.studentEvals, students, now, startDate, behaviorFilter.dateRange, 3, 5);
+          labels = result.labels;
+          datasets = buildDatasets(labels, result.data, students, behaviorFilter.student, studentColors);
 
         } else if (behaviorFilter.chartType === 'weeklyEvalFreq') {
-          // Weekly evaluation frequency (scores 1-5, excluding 0)
-          const weeklyData = {};
-          const weekCount = behaviorFilter.dateRange === 'march1'
-            ? Math.ceil((now - startDate) / (7 * 24 * 60 * 60 * 1000))
-            : Math.ceil(behaviorFilter.dateRange / 7);
-
-          for (let i = 0; i < weekCount; i++) {
-            const weekEnd = new Date(now - i * 7 * 24 * 60 * 60 * 1000);
-            const weekStart = startOfWeek(weekEnd);
-            const weekLabel = getWeekLabel(weekStart);
-            weeklyData[weekLabel] = {};
-            students.forEach(s => weeklyData[weekLabel][s] = 0);
-            weeklyData[weekLabel]['학급 합계'] = 0;
-          }
-
-          // Count student evaluations with scores 1-5 (excluding 0)
-          Object.entries(state.studentEvals).forEach(([key, evalData]) => {
-            if (evalData.score >= 1 && evalData.score <= 5 && evalData.timestamp >= startDate) {
-              const weekStart = startOfWeek(new Date(evalData.timestamp));
-              const weekLabel = getWeekLabel(weekStart);
-
-              if (weeklyData[weekLabel]) {
-                const studentId = key.split('-')[1];
-                if (students.includes(studentId)) {
-                  weeklyData[weekLabel][studentId]++;
-                }
-                weeklyData[weekLabel]['학급 합계']++;
-              }
-            }
-          });
-
-          labels = Object.keys(weeklyData).reverse();
-
-          // Add datasets based on filter selection
-          if (behaviorFilter.student === 'ALL') {
-            // Show all individual students only
-            students.forEach(student => {
-              datasets.push({
-                label: student,
-                data: labels.map(label => weeklyData[label][student]),
-                borderColor: studentColors[student],
-                backgroundColor: 'transparent',
-                tension: 0.4,
-                borderWidth: 2,
-              });
-            });
-          } else if (behaviorFilter.student === 'CLASS_TOTAL') {
-            // Show only class total
-            datasets.push({
-              label: '학급 합계',
-              data: labels.map(label => weeklyData[label]['학급 합계']),
-              borderColor: studentColors['학급 합계'],
-              backgroundColor: 'transparent',
-              tension: 0.4,
-              borderWidth: 3,
-            });
-          } else {
-            // Show specific student only
-            const selectedStudent = behaviorFilter.student;
-            datasets.push({
-              label: selectedStudent,
-              data: labels.map(label => weeklyData[label][selectedStudent] || 0),
-              borderColor: studentColors[selectedStudent],
-              backgroundColor: 'transparent',
-              tension: 0.4,
-              borderWidth: 2,
-            });
-          }
+          const result = processWeeklyEvalChart(state.studentEvals, students, now, startDate, behaviorFilter.dateRange, 1, 5);
+          labels = result.labels;
+          datasets = buildDatasets(labels, result.data, students, behaviorFilter.student, studentColors);
 
         } else if (behaviorFilter.chartType === 'dailyEvalFreq') {
-          // Daily evaluation frequency (scores 1-5, excluding 0)
-          const dailyData = {};
-          const dayCount = behaviorFilter.dateRange === 'march1'
-            ? Math.ceil((now - startDate) / (24 * 60 * 60 * 1000))
-            : behaviorFilter.dateRange;
-
-          for (let i = 0; i < dayCount; i++) {
-            const date = new Date(now - i * 24 * 60 * 60 * 1000);
-            const dateStr = date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
-            dailyData[dateStr] = {};
-            students.forEach(s => dailyData[dateStr][s] = 0);
-            dailyData[dateStr]['학급 합계'] = 0;
-          }
-
-          // Count student evaluations with scores 1-5 (excluding 0)
-          Object.entries(state.studentEvals).forEach(([key, evalData]) => {
-            if (evalData.score >= 1 && evalData.score <= 5 && evalData.timestamp >= startDate) {
-              const dateStr = new Date(evalData.timestamp).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
-
-              if (dailyData[dateStr]) {
-                const studentId = key.split('-')[1];
-                if (students.includes(studentId)) {
-                  dailyData[dateStr][studentId]++;
-                }
-                dailyData[dateStr]['학급 합계']++;
-              }
-            }
-          });
-
-          labels = Object.keys(dailyData).reverse();
-
-          // Add datasets based on filter selection
-          if (behaviorFilter.student === 'ALL') {
-            // Show all individual students only
-            students.forEach(student => {
-              datasets.push({
-                label: student,
-                data: labels.map(label => dailyData[label][student]),
-                borderColor: studentColors[student],
-                backgroundColor: 'transparent',
-                tension: 0.4,
-                borderWidth: 2,
-              });
-            });
-          } else if (behaviorFilter.student === 'CLASS_TOTAL') {
-            // Show only class total
-            datasets.push({
-              label: '학급 합계',
-              data: labels.map(label => dailyData[label]['학급 합계']),
-              borderColor: studentColors['학급 합계'],
-              backgroundColor: 'transparent',
-              tension: 0.4,
-              borderWidth: 3,
-            });
-          } else {
-            // Show specific student only
-            const selectedStudent = behaviorFilter.student;
-            datasets.push({
-              label: selectedStudent,
-              data: labels.map(label => dailyData[label][selectedStudent] || 0),
-              borderColor: studentColors[selectedStudent],
-              backgroundColor: 'transparent',
-              tension: 0.4,
-              borderWidth: 2,
-            });
-          }
+          const result = processDailyEvalChart(state.studentEvals, students, now, startDate, behaviorFilter.dateRange);
+          labels = result.labels;
+          datasets = buildDatasets(labels, result.data, students, behaviorFilter.student, studentColors);
 
         } else if (behaviorFilter.chartType === 'pbsProgress') {
-          // PBS 종합 진전도 (주별 행동 유형별 + 목표 달성도)
-          const weekCount = behaviorFilter.dateRange === 'march1'
-            ? Math.ceil((now - startDate) / (7 * 24 * 60 * 60 * 1000))
-            : Math.ceil(behaviorFilter.dateRange / 7);
-
-          const weeklyData = {
-            TARGET: {},      // 표적행동
-            REPLACEMENT: {}, // 대체행동
-            POSITIVE: {},    // 긍정행동
-            GOAL: {}         // 목표달성 (3~5점)
-          };
-
-          // 주차 레이블 생성
-          for (let i = 0; i < weekCount; i++) {
-            const weekEnd = new Date(now - i * 7 * 24 * 60 * 60 * 1000);
-            const weekStart = startOfWeek(weekEnd);
-            const weekLabel = getWeekLabel(weekStart);
-
-            Object.keys(weeklyData).forEach(key => {
-              weeklyData[key][weekLabel] = {
-                start: weekStart.getTime(),
-                end: addDays(weekStart, 6).getTime(),
-                value: 0
-              };
-            });
-          }
-
-          // 행동 데이터 집계
-          filteredData.forEach(b => {
-            Object.keys(weeklyData).forEach(weekLabel => {
-              const week = weeklyData[b.behaviorType]?.[weekLabel];
-              if (week && b.timestamp >= week.start && b.timestamp <= week.end) {
-                const freq = typeof b.frequency === 'number' ? b.frequency : 1;
-                if (behaviorFilter.student === 'ALL' || behaviorFilter.student === 'CLASS_TOTAL' || b.studentName === behaviorFilter.student) {
-                  week.value += freq;
-                }
-              }
-            });
-          });
-
-          // 목표 달성 데이터 집계 (3~5점)
-          Object.entries(state.studentEvals).forEach(([key, evalData]) => {
-            if (evalData.score >= 3 && evalData.score <= 5 && evalData.timestamp >= startDate) {
-              const studentId = key.split('-')[1];
-              if (behaviorFilter.student === 'ALL' || behaviorFilter.student === 'CLASS_TOTAL' || studentId === behaviorFilter.student) {
-                Object.keys(weeklyData.GOAL).forEach(weekLabel => {
-                  const week = weeklyData.GOAL[weekLabel];
-                  if (evalData.timestamp >= week.start && evalData.timestamp <= week.end) {
-                    week.value++;
-                  }
-                });
-              }
-            }
-          });
-
-          labels = Object.keys(weeklyData.TARGET).reverse();
-
-          // 데이터셋 생성
-          datasets = [
-            {
-              label: '🎯 표적행동 (감소 필요)',
-              data: labels.map(label => weeklyData.TARGET[label]?.value || 0),
-              borderColor: '#ef4444',
-              backgroundColor: 'rgba(239, 68, 68, 0.1)',
-              tension: 0.4,
-              borderWidth: 3,
-              fill: true
-            },
-            {
-              label: '✨ 대체행동 (증가 목표)',
-              data: labels.map(label => weeklyData.REPLACEMENT[label]?.value || 0),
-              borderColor: '#10b981',
-              backgroundColor: 'rgba(16, 185, 129, 0.1)',
-              tension: 0.4,
-              borderWidth: 3,
-              fill: true
-            },
-            {
-              label: '👍 긍정행동 (증가 목표)',
-              data: labels.map(label => weeklyData.POSITIVE[label]?.value || 0),
-              borderColor: '#3b82f6',
-              backgroundColor: 'rgba(59, 130, 246, 0.1)',
-              tension: 0.4,
-              borderWidth: 3,
-              fill: true
-            },
-            {
-              label: '📊 목표달성 횟수 (3~5점)',
-              data: labels.map(label => weeklyData.GOAL[label]?.value || 0),
-              borderColor: '#a78bfa',
-              backgroundColor: 'rgba(167, 139, 250, 0.1)',
-              tension: 0.4,
-              borderWidth: 3,
-              fill: true,
-              borderDash: [5, 5]
-            }
-          ];
+          const result = processPbsProgressChart(filteredData, state.studentEvals, behaviorFilter.student, now, startDate, behaviorFilter.dateRange);
+          labels = result.labels;
+          datasets = result.datasets;
 
         } else if (behaviorFilter.chartType === 'studentGoalAchievement') {
-          // Student-wise lesson goal achievement frequency (기간 내 학생별 수업목표 도달 빈도)
-          const studentData = {};
-          students.forEach(s => studentData[s] = 0);
-
-          // Count student evaluations with scores 3, 4, 5
-          Object.entries(state.studentEvals).forEach(([key, evalData]) => {
-            if (evalData.score >= 3 && evalData.score <= 5 && evalData.timestamp >= startDate) {
-              const studentId = key.split('-')[1];
-              if (students.includes(studentId)) {
-                studentData[studentId]++;
-              }
-            }
-          });
-
-          labels = students;
-
-          // Single dataset showing all students as a bar chart
-          datasets.push({
-            label: '수업목표 도달 횟수 (3~5점)',
-            data: labels.map(label => studentData[label]),
-            backgroundColor: students.map(s => studentColors[s] + '80'), // 50% opacity
-            borderColor: students.map(s => studentColors[s]),
-            borderWidth: 2,
-          });
+          const result = processStudentGoalAchievementChart(state.studentEvals, students, studentColors, startDate);
+          labels = result.labels;
+          datasets = result.datasets;
 
         } else if (behaviorFilter.chartType === 'studentBehaviorFreq') {
-          // Student-wise behavior occurrence frequency (기간 내 학생별 행동 발생 빈도)
-          const studentData = {};
-          students.forEach(s => studentData[s] = 0);
-
-          // Sum up behavior frequencies for each student
-          filteredData.forEach(b => {
-            if (students.includes(b.studentName)) {
-              const freq = typeof b.frequency === 'number' ? b.frequency : 1;
-              studentData[b.studentName] += freq;
-            }
-          });
-
-          labels = students;
-
-          // Single dataset showing all students as a bar chart
-          datasets.push({
-            label: '행동 발생 횟수',
-            data: labels.map(label => studentData[label]),
-            backgroundColor: students.map(s => studentColors[s] + '80'), // 50% opacity
-            borderColor: students.map(s => studentColors[s]),
-            borderWidth: 2,
-          });
+          const result = processStudentBehaviorFreqChart(filteredData, students, studentColors);
+          labels = result.labels;
+          datasets = result.datasets;
         }
 
         // Create or update chart
