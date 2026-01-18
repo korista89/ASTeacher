@@ -1936,7 +1936,7 @@
       const [showSearch, setShowSearch] = useState(false);
       const [editingBehavior, setEditingBehavior] = useState(null);
       const [showMobileMenu, setShowMobileMenu] = useState(false);
-      const [behaviorFilter, setBehaviorFilter] = useState({ dateRange: 30, student: 'ALL', chartType: 'daily' });
+      const [behaviorFilter, setBehaviorFilter] = useState({ dateRange: 30, student: 'ALL', chartType: 'pbsProgress', behaviorType: 'ALL' });
       const [reportType, setReportType] = useState('weekly');
       const [lessonWeekStart, setLessonWeekStart] = useState(() => startOfWeek(new Date()));
       const [behaviorWeekStart, setBehaviorWeekStart] = useState(() => startOfWeek(new Date()));
@@ -2124,10 +2124,11 @@
           filteredData.forEach(b => {
             const dateStr = new Date(b.timestamp).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
             if (dailyData[dateStr]) {
+              const freq = typeof b.frequency === 'number' ? b.frequency : 1;
               if (students.includes(b.studentName)) {
-                dailyData[dateStr][b.studentName]++;
+                dailyData[dateStr][b.studentName] += freq;
               }
-              dailyData[dateStr]['학급 합계']++;
+              dailyData[dateStr]['학급 합계'] += freq;
             }
           });
 
@@ -2187,10 +2188,11 @@
             Object.keys(weeklyData).forEach(weekLabel => {
               const week = weeklyData[weekLabel];
               if (b.timestamp >= week.start && b.timestamp <= week.end) {
+                const freq = typeof b.frequency === 'number' ? b.frequency : 1;
                 if (students.includes(b.studentName)) {
-                  weeklyData[weekLabel][b.studentName]++;
+                  weeklyData[weekLabel][b.studentName] += freq;
                 }
-                weeklyData[weekLabel]['학급 합계']++;
+                weeklyData[weekLabel]['학급 합계'] += freq;
               }
             });
           });
@@ -2248,10 +2250,11 @@
             // Only include weekdays (Mon=1 to Fri=5)
             if (dayOfWeek >= 1 && dayOfWeek <= 5) {
               const day = daysOfWeek[dayOfWeek - 1];
+              const freq = typeof b.frequency === 'number' ? b.frequency : 1;
               if (students.includes(b.studentName)) {
-                dayData[day][b.studentName]++;
+                dayData[day][b.studentName] += freq;
               }
-              dayData[day]['학급 합계']++;
+              dayData[day]['학급 합계'] += freq;
             }
           });
 
@@ -2315,10 +2318,11 @@
             else if (hour >= 15 && hour < 16) period = '7교시';
 
             if (period && periodData[period]) {
+              const freq = typeof b.frequency === 'number' ? b.frequency : 1;
               if (students.includes(b.studentName)) {
-                periodData[period][b.studentName]++;
+                periodData[period][b.studentName] += freq;
               }
-              periodData[period]['학급 합계']++;
+              periodData[period]['학급 합계'] += freq;
             }
           });
 
@@ -2567,6 +2571,104 @@
               borderWidth: 2,
             });
           }
+
+        } else if (behaviorFilter.chartType === 'pbsProgress') {
+          // PBS 종합 진전도 (주별 행동 유형별 + 목표 달성도)
+          const weekCount = behaviorFilter.dateRange === 'march1'
+            ? Math.ceil((now - startDate) / (7 * 24 * 60 * 60 * 1000))
+            : Math.ceil(behaviorFilter.dateRange / 7);
+
+          const weeklyData = {
+            TARGET: {},      // 표적행동
+            REPLACEMENT: {}, // 대체행동
+            POSITIVE: {},    // 긍정행동
+            GOAL: {}         // 목표달성 (3~5점)
+          };
+
+          // 주차 레이블 생성
+          for (let i = 0; i < weekCount; i++) {
+            const weekStart = new Date(now - i * 7 * 24 * 60 * 60 * 1000);
+            const weekLabel = `${weekStart.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}주`;
+
+            Object.keys(weeklyData).forEach(key => {
+              weeklyData[key][weekLabel] = {
+                start: weekStart.getTime() - 6 * 24 * 60 * 60 * 1000,
+                end: weekStart.getTime(),
+                value: 0
+              };
+            });
+          }
+
+          // 행동 데이터 집계
+          filteredData.forEach(b => {
+            Object.keys(weeklyData).forEach(weekLabel => {
+              const week = weeklyData[b.behaviorType]?.[weekLabel];
+              if (week && b.timestamp >= week.start && b.timestamp <= week.end) {
+                const freq = typeof b.frequency === 'number' ? b.frequency : 1;
+                if (behaviorFilter.student === 'ALL' || behaviorFilter.student === 'CLASS_TOTAL' || b.studentName === behaviorFilter.student) {
+                  week.value += freq;
+                }
+              }
+            });
+          });
+
+          // 목표 달성 데이터 집계 (3~5점)
+          Object.entries(state.studentEvals).forEach(([key, evalData]) => {
+            if (evalData.score >= 3 && evalData.score <= 5 && evalData.timestamp >= startDate) {
+              const studentId = key.split('-')[1];
+              if (behaviorFilter.student === 'ALL' || behaviorFilter.student === 'CLASS_TOTAL' || studentId === behaviorFilter.student) {
+                Object.keys(weeklyData.GOAL).forEach(weekLabel => {
+                  const week = weeklyData.GOAL[weekLabel];
+                  if (evalData.timestamp >= week.start && evalData.timestamp <= week.end) {
+                    week.value++;
+                  }
+                });
+              }
+            }
+          });
+
+          labels = Object.keys(weeklyData.TARGET).reverse();
+
+          // 데이터셋 생성
+          datasets = [
+            {
+              label: '🎯 표적행동 (감소 필요)',
+              data: labels.map(label => weeklyData.TARGET[label]?.value || 0),
+              borderColor: '#ef4444',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              tension: 0.4,
+              borderWidth: 3,
+              fill: true
+            },
+            {
+              label: '✨ 대체행동 (증가 목표)',
+              data: labels.map(label => weeklyData.REPLACEMENT[label]?.value || 0),
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              tension: 0.4,
+              borderWidth: 3,
+              fill: true
+            },
+            {
+              label: '👍 긍정행동 (증가 목표)',
+              data: labels.map(label => weeklyData.POSITIVE[label]?.value || 0),
+              borderColor: '#3b82f6',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              tension: 0.4,
+              borderWidth: 3,
+              fill: true
+            },
+            {
+              label: '📊 목표달성 횟수 (3~5점)',
+              data: labels.map(label => weeklyData.GOAL[label]?.value || 0),
+              borderColor: '#a78bfa',
+              backgroundColor: 'rgba(167, 139, 250, 0.1)',
+              tension: 0.4,
+              borderWidth: 3,
+              fill: true,
+              borderDash: [5, 5]
+            }
+          ];
         }
 
         // Create or update chart
@@ -2882,13 +2984,19 @@
 
       // 학생 평가 저장
       const saveStudentEval = (lessonId, studentId, score, memo = '') => {
-        setState(p => ({
-          ...p,
-          studentEvals: {
-            ...p.studentEvals,
-            [`${lessonId}-${studentId}`]: { score, memo, updatedAt: nowMs() }
-          }
-        }));
+        setState(p => {
+          // 수업 날짜 가져오기
+          const lesson = p.lessons.find(l => l.id === lessonId);
+          const timestamp = lesson ? lesson.date : nowMs();
+
+          return {
+            ...p,
+            studentEvals: {
+              ...p.studentEvals,
+              [`${lessonId}-${studentId}`]: { score, memo, updatedAt: nowMs(), timestamp }
+            }
+          };
+        });
       };
 
       // 수업 및 평가 통합 CSV 내보내기
@@ -3109,14 +3217,15 @@
       };
 
       // 빠른 행동 기록 (그리드에서 사용)
-      const saveBehaviorRecordQuick = (date, studentName, behaviorType, frequency) => {
+      const saveBehaviorRecordQuick = (date, studentName, behaviorType, frequency, lessonId = null) => {
         // 해당 날짜/학생/타입의 기존 기록이 있는지 확인
         const existingLog = state.behaviorLog.find(log => {
           const logDate = new Date(log.timestamp);
           const targetDate = new Date(date);
           return isSameDay(logDate, targetDate) &&
                  log.studentName === studentName &&
-                 log.behaviorType === behaviorType;
+                 log.behaviorType === behaviorType &&
+                 (lessonId ? log.lessonId === lessonId : !log.lessonId);
         });
 
         if (existingLog) {
@@ -3140,23 +3249,25 @@
               studentName: studentName,
               behaviorType: behaviorType,
               behavior: `${behaviorTypeInfo?.label || '행동'} 기록`,
-              antecedent: '그리드 입력',
+              antecedent: '수업 중 기록',
               consequence: '-',
               frequency: frequency,
-              interventionNote: ''
+              interventionNote: '',
+              lessonId: lessonId
             }]
           }));
         }
       };
 
       // 특정 날짜/학생/타입의 빈도 가져오기
-      const getBehaviorFrequency = (date, studentName, behaviorType) => {
+      const getBehaviorFrequency = (date, studentName, behaviorType, lessonId = null) => {
         const log = state.behaviorLog.find(log => {
           const logDate = new Date(log.timestamp);
           const targetDate = new Date(date);
           return isSameDay(logDate, targetDate) &&
                  log.studentName === studentName &&
-                 log.behaviorType === behaviorType;
+                 log.behaviorType === behaviorType &&
+                 (lessonId ? log.lessonId === lessonId : !log.lessonId);
         });
         return log ? log.frequency : null;
       };
@@ -3432,6 +3543,8 @@
           if (b.timestamp < startDate) return false;
           // Don't filter by student for ALL or CLASS_TOTAL - show all data
           if (behaviorFilter.student !== 'ALL' && behaviorFilter.student !== 'CLASS_TOTAL' && b.studentName !== behaviorFilter.student) return false;
+          // Filter by behavior type if specified
+          if (behaviorFilter.behaviorType && behaviorFilter.behaviorType !== 'ALL' && b.behaviorType !== behaviorFilter.behaviorType) return false;
           return true;
         });
       }, [state.behaviorLog, behaviorFilter]);
@@ -5302,6 +5415,8 @@
                   onChange={(e) => setBehaviorFilter({ ...behaviorFilter, chartType: e.target.value })}
                   className="form-select"
                 >
+                  <option value="pbsProgress">📈 PBS 종합 진전도 (주별 통합)</option>
+                  <option disabled>────────────</option>
                   <option value="daily">일별 행동 발생 빈도</option>
                   <option value="weekly">주별 행동 발생 빈도</option>
                   <option value="dayOfWeek">요일별 행동 발생 분포</option>
@@ -5332,6 +5447,16 @@
                     <option key={student} value={student}>{student}</option>
                   ))}
                 </select>
+                <select
+                  value={behaviorFilter.behaviorType}
+                  onChange={(e) => setBehaviorFilter({ ...behaviorFilter, behaviorType: e.target.value })}
+                  className="form-select"
+                >
+                  <option value="ALL">전체 행동 유형</option>
+                  {Object.entries(BEHAVIOR_TYPES).map(([key, typeInfo]) => (
+                    <option key={key} value={key}>{typeInfo.icon} {typeInfo.label}</option>
+                  ))}
+                </select>
 
                 <button
                   style={{ ...styles.btn2, background: 'rgba(16, 185, 129, 0.3)' }}
@@ -5360,9 +5485,12 @@
                   }}>
                     {(() => {
                       const byType = {};
+                      let totalFrequency = 0;
                       filteredBehaviorLog.forEach(b => {
                         const type = BEHAVIOR_TYPES[b.behaviorType]?.label || b.behaviorType;
-                        byType[type] = (byType[type] || 0) + 1;
+                        const freq = typeof b.frequency === 'number' ? b.frequency : 1;
+                        byType[type] = (byType[type] || 0) + freq;
+                        totalFrequency += freq;
                       });
 
                       const sorted = Object.entries(byType).sort((a, b) => b[1] - a[1]);
@@ -5377,8 +5505,8 @@
                             border: '1px solid rgba(59, 130, 246, 0.4)',
                             textAlign: 'center',
                           }}>
-                            <div style={{ fontSize: 32, fontWeight: 900, color: '#60a5fa' }}>{filteredBehaviorLog.length}</div>
-                            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>총 기록 수</div>
+                            <div style={{ fontSize: 32, fontWeight: 900, color: '#60a5fa' }}>{totalFrequency}</div>
+                            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>총 행동 빈도</div>
                           </div>
                           <div style={{
                             padding: 20,
@@ -5389,14 +5517,14 @@
                           }}>
                             <div style={{ fontSize: 32, fontWeight: 900, color: '#10b981' }}>
                               {(() => {
-                                if (filteredBehaviorLog.length === 0) return 0;
+                                if (totalFrequency === 0) return 0;
                                 const dayCount = behaviorFilter.dateRange === 'march1'
                                   ? Math.ceil((Date.now() - new Date(new Date().getFullYear(), 2, 1).getTime()) / (24 * 60 * 60 * 1000))
                                   : behaviorFilter.dateRange;
-                                return (filteredBehaviorLog.length / dayCount).toFixed(1);
+                                return (totalFrequency / dayCount).toFixed(1);
                               })()}
                             </div>
-                            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>일평균 발생</div>
+                            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>일평균 빈도</div>
                           </div>
                           <div style={{
                             padding: 20,
@@ -5406,9 +5534,9 @@
                             textAlign: 'center',
                           }}>
                             <div style={{ fontSize: 16, fontWeight: 900, color: '#a78bfa' }}>
-                              {mostCommon ? mostCommon[0] : '-'}
+                              {mostCommon ? `${mostCommon[0]} (${mostCommon[1]})` : '-'}
                             </div>
-                            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>최다 발생</div>
+                            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>최다 발생 유형</div>
                           </div>
                         </>
                       );
@@ -5419,6 +5547,7 @@
                   <div className="chart-container">
                     <h3 style={{ fontSize: 16, fontWeight: 700, color: 'white', marginBottom: 16 }}>
                       📊 {
+                        behaviorFilter.chartType === 'pbsProgress' ? 'PBS 종합 진전도 - 행동개선 및 학습목표 달성' :
                         behaviorFilter.chartType === 'daily' ? '일별 행동 발생 빈도' :
                         behaviorFilter.chartType === 'weekly' ? '주별 행동 발생 빈도' :
                         behaviorFilter.chartType === 'dayOfWeek' ? '요일별 행동 발생 분포' :
@@ -5427,9 +5556,41 @@
                         behaviorFilter.chartType === 'weeklyEvalFreq' ? '주별 행동발생 빈도 (1~5점)' :
                         behaviorFilter.chartType === 'dailyEvalFreq' ? '일별 행동발생 빈도 (1~5점)' :
                         '차트'
-                      } (학생별 추이)
+                      }{behaviorFilter.chartType !== 'pbsProgress' ? ' (학생별 추이)' : ''}
                     </h3>
                     <canvas id="behaviorLineChart"></canvas>
+
+                    {/* PBS 차트 해석 가이드 */}
+                    {behaviorFilter.chartType === 'pbsProgress' && (
+                      <div style={{
+                        marginTop: 20,
+                        padding: 16,
+                        background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2))',
+                        borderRadius: 12,
+                        border: '1px solid rgba(139, 92, 246, 0.4)'
+                      }}>
+                        <h4 style={{ fontSize: 14, fontWeight: 700, color: '#a78bfa', marginBottom: 12 }}>
+                          💡 PBS 차트 해석 가이드
+                        </h4>
+                        <ul style={{ fontSize: 13, color: 'rgba(255,255,255,0.9)', lineHeight: 1.8, paddingLeft: 20, margin: 0 }}>
+                          <li><strong style={{ color: '#ef4444' }}>🎯 표적행동(빨간선)</strong>: 감소하는 추세가 긍정적입니다. 행동지원 계획이 효과적임을 의미합니다.</li>
+                          <li><strong style={{ color: '#10b981' }}>✨ 대체행동(초록선)</strong>: 증가하는 추세가 긍정적입니다. 적절한 대안 행동을 학습하고 있음을 의미합니다.</li>
+                          <li><strong style={{ color: '#3b82f6' }}>👍 긍정행동(파란선)</strong>: 증가하는 추세가 긍정적입니다. 바람직한 행동이 강화되고 있음을 의미합니다.</li>
+                          <li><strong style={{ color: '#a78bfa' }}>📊 목표달성(보라 점선)</strong>: 증가하는 추세가 긍정적입니다. 학습목표를 달성하는 횟수가 늘어나고 있음을 의미합니다.</li>
+                        </ul>
+                        <div style={{
+                          marginTop: 12,
+                          padding: 12,
+                          background: 'rgba(16, 185, 129, 0.2)',
+                          borderRadius: 8,
+                          fontSize: 12,
+                          color: '#10b981',
+                          fontWeight: 700
+                        }}>
+                          ✅ 이상적인 PBS 진전도: 표적행동 ↓ / 대체행동 ↑ / 긍정행동 ↑ / 목표달성 ↑
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                 </div>
@@ -5547,11 +5708,16 @@
                 {editingLesson.id && (
                   <div style={{ marginTop: 24, padding: 16, background: 'rgba(0,0,0,0.2)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)' }}>
                     <h3 style={{ fontSize: 16, fontWeight: 700, color: 'white', marginBottom: 12 }}>
-                      📊 학생별 수업목표 평가
+                      📊 학생별 수업목표 달성도 평가
                     </h3>
-                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginBottom: 12 }}>
-                      평가 척도: 0(결석) / 1(미참여) / 2(미도달) / 3(최대촉구) / 4(일부촉구) / 5(목표달성)
-                    </p>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginBottom: 12, lineHeight: 1.6 }}>
+                      <p style={{ marginBottom: 8 }}>
+                        <strong>평가 척도:</strong> 0(결석) / 1(미참여) / 2(미도달) / 3(최대촉구) / 4(일부촉구) / 5(목표달성)
+                      </p>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', margin: 0 }}>
+                        💡 촉구 수준: 3점(신체적 촉구/모델링) → 4점(언어적 촉구/부분 도움) → 5점(독립 수행)
+                      </p>
+                    </div>
                     <div className="student-eval-grid">
                       <div className="eval-cell" style={{ fontWeight: 900, background: 'rgba(139, 92, 246, 0.3)', color: '#c4b5fd' }}>학생</div>
                       {[0, 1, 2, 3, 4, 5].map(score => (
@@ -5592,90 +5758,57 @@
                 {/* PBS 행동 기록 섹션 (수업 수정 시에만 표시) */}
                 {editingLesson.id && (
                   <div style={{ marginTop: 16, padding: 16, background: 'rgba(0,0,0,0.2)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                      <h3 style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>
-                        🎯 PBS 행동 기록
-                      </h3>
-                      <button
-                        style={{ ...styles.btn2, padding: '8px 12px', background: 'rgba(59, 130, 246, 0.3)' }}
-                        onClick={() => {
-                          const lessonDate = editingLesson.date ? new Date(editingLesson.date) : new Date();
-                          setEditingBehavior({
-                            timestamp: lessonDate.getTime(),
-                            lessonId: editingLesson.id,
-                            studentName: '',
-                            behaviorType: 'POSITIVE',
-                            antecedent: '',
-                            behavior: '',
-                            consequence: '',
-                            frequency: 0,
-                            interventionNote: ''
-                          });
-                        }}
-                      >
-                        ➕ 행동 기록 추가
-                      </button>
-                    </div>
-                    <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-                      {(() => {
-                        const lessonBehaviors = state.behaviorLog.filter(b => b.lessonId === editingLesson.id);
-                        return lessonBehaviors.length === 0 ? (
-                          <div style={{ textAlign: 'center', padding: 20, color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>
-                            이 수업에 대한 행동 기록이 없습니다.
-                          </div>
-                        ) : (
-                          <div style={{ display: 'grid', gap: 8 }}>
-                            {lessonBehaviors.map(log => (
-                              <div
-                                key={log.id}
-                                style={{
-                                  padding: 10,
-                                  background: 'rgba(0,0,0,0.2)',
-                                  borderRadius: 8,
-                                  border: '1px solid rgba(255,255,255,0.1)',
-                                  fontSize: 12,
-                                }}
-                              >
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                                  <div style={{ flex: 1 }}>
-                                    <div style={{ fontWeight: 700, color: BEHAVIOR_TYPES[log.behaviorType]?.color }}>
-                                      {BEHAVIOR_TYPES[log.behaviorType]?.icon} {log.studentName}
-                                    </div>
-                                    <div style={{ color: 'rgba(255,255,255,0.8)', marginTop: 2 }}>
-                                      {log.behavior || '행동 미입력'}
-                                    </div>
-                                    <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10, marginTop: 2 }}>
-                                      {log.antecedent || '선행사건 미입력'} → {log.consequence || '후속결과 미입력'}
-                                    </div>
-                                  </div>
-                                  <div style={{ display: 'flex', gap: 4 }}>
-                                    <button
-                                      style={{ ...styles.btn2, padding: '4px 8px', fontSize: 10, background: 'rgba(251, 191, 36, 0.2)' }}
-                                      onClick={() => setEditingBehavior(log)}
-                                    >
-                                      ✏️
-                                    </button>
-                                    <button
-                                      style={{ ...styles.btn2, padding: '4px 8px', fontSize: 10, background: 'rgba(239, 68, 68, 0.2)' }}
-                                      onClick={() => {
-                                        if (confirm('이 행동 기록을 삭제하시겠습니까?')) {
-                                          setState(p => ({
-                                            ...p,
-                                            behaviorLog: p.behaviorLog.filter(b => b.id !== log.id)
-                                          }));
-                                        }
-                                      }}
-                                    >
-                                      🗑️
-                                    </button>
-                                  </div>
+                    <h3 style={{ fontSize: 16, fontWeight: 700, color: 'white', marginBottom: 12 }}>
+                      🎯 PBS 행동 빈도 기록 (0~5회)
+                    </h3>
+                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginBottom: 12 }}>
+                      행동 빈도 척도: 0(발생안함) / 1(1회) / 2(2회) / 3(3회) / 4(4회) / 5(5회 이상)
+                    </p>
+
+                    {/* 행동 유형별 그리드 */}
+                    {Object.entries(BEHAVIOR_TYPES).map(([typeKey, typeInfo]) => (
+                      <div key={typeKey} style={{ marginBottom: 16 }}>
+                        <h4 style={{ fontSize: 14, fontWeight: 700, color: typeInfo.color, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span>{typeInfo.icon}</span>
+                          <span>{typeInfo.label}</span>
+                        </h4>
+                        <div className="student-eval-grid" style={{ gridTemplateColumns: 'auto repeat(6, 1fr)' }}>
+                          <div className="eval-cell" style={{ fontWeight: 900, background: 'rgba(139, 92, 246, 0.3)', color: '#c4b5fd' }}>학생</div>
+                          {[0, 1, 2, 3, 4, 5].map(score => (
+                            <div key={score} className="eval-cell" style={{ fontWeight: 900, background: 'rgba(139, 92, 246, 0.3)', color: '#c4b5fd', fontSize: 11 }}>
+                              {score}점
+                            </div>
+                          ))}
+                          {[1, 2, 3, 4, 5, 6, 7].map(studentNum => {
+                            const studentId = `학생${studentNum}`;
+                            const lessonDate = editingLesson.date ? new Date(editingLesson.date).getTime() : Date.now();
+                            const currentFreq = getBehaviorFrequency(lessonDate, studentId, typeKey, editingLesson.id);
+                            return (
+                              <React.Fragment key={studentNum}>
+                                <div className="eval-cell" style={{ fontWeight: 700, background: 'rgba(59, 130, 246, 0.1)' }}>
+                                  {studentId}
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                    </div>
+                                {[0, 1, 2, 3, 4, 5].map(score => (
+                                  <div
+                                    key={score}
+                                    className={`eval-cell ${currentFreq === score ? 'selected' : ''}`}
+                                    onClick={() => saveBehaviorRecordQuick(lessonDate, studentId, typeKey, score, editingLesson.id)}
+                                    style={{
+                                      cursor: 'pointer',
+                                      fontWeight: currentFreq === score ? 900 : 600,
+                                      background: currentFreq === score ? `${typeInfo.color}40` : 'rgba(0,0,0,0.2)',
+                                      color: currentFreq === score ? typeInfo.color : 'rgba(255,255,255,0.6)',
+                                    }}
+                                  >
+                                    {currentFreq === score ? '✓' : '-'}
+                                  </div>
+                                ))}
+                              </React.Fragment>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
 
