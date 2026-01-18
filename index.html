@@ -2585,16 +2585,16 @@
           }
 
         } else if (behaviorFilter.chartType === 'pbsProgress') {
-          // PBS 종합 진전도 (주별 행동 유형별 + 목표 달성도)
+          // PBS 종합 진전도 - 개선된 버전 (주별 긍정 지표 vs 개선 필요 지표)
           const weekCount = behaviorFilter.dateRange === 'march1'
             ? Math.ceil((now - startDate) / (7 * 24 * 60 * 60 * 1000))
             : Math.ceil(behaviorFilter.dateRange / 7);
 
           const weeklyData = {
-            TARGET: {},      // 표적행동
-            REPLACEMENT: {}, // 대체행동
-            POSITIVE: {},    // 긍정행동
-            GOAL: {}         // 목표달성 (3~5점)
+            TARGET: {},      // 표적행동 (감소 필요)
+            REPLACEMENT: {}, // 대체행동 (증가 목표)
+            POSITIVE: {},    // 긍정행동 (증가 목표)
+            GOAL: {}         // 목표달성 (증가 목표)
           };
 
           // 주차 레이블 생성
@@ -2642,44 +2642,60 @@
 
           labels = Object.keys(weeklyData.TARGET).reverse();
 
-          // 데이터셋 생성
+          // 개선된 데이터셋: 긍정 지표와 개선 필요 지표를 명확하게 구분
+          // 진전도 지수 = (긍정적 행동들의 합) - (표적행동 * 가중치)
+          const progressIndexData = labels.map(label => {
+            const target = weeklyData.TARGET[label]?.value || 0;
+            const replacement = weeklyData.REPLACEMENT[label]?.value || 0;
+            const positive = weeklyData.POSITIVE[label]?.value || 0;
+            const goal = weeklyData.GOAL[label]?.value || 0;
+
+            // 진전도 지수: 긍정 행동은 +, 표적행동은 -
+            // 목표달성에 더 높은 가중치 부여
+            return (replacement + positive + goal * 3) - (target * 2);
+          });
+
+          // 긍정 지표 합계 (증가하면 좋음)
+          const positiveIndexData = labels.map(label => {
+            const replacement = weeklyData.REPLACEMENT[label]?.value || 0;
+            const positive = weeklyData.POSITIVE[label]?.value || 0;
+            const goal = weeklyData.GOAL[label]?.value || 0;
+            return replacement + positive + goal;
+          });
+
           datasets = [
             {
-              label: '🎯 표적행동 (감소 필요)',
-              data: labels.map(label => weeklyData.TARGET[label]?.value || 0),
-              borderColor: '#ef4444',
-              backgroundColor: 'rgba(239, 68, 68, 0.1)',
-              tension: 0.4,
-              borderWidth: 3,
-              fill: true
-            },
-            {
-              label: '✨ 대체행동 (증가 목표)',
-              data: labels.map(label => weeklyData.REPLACEMENT[label]?.value || 0),
+              label: '📈 PBS 진전도 지수 (높을수록 좋음)',
+              data: progressIndexData,
               borderColor: '#10b981',
-              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              backgroundColor: progressIndexData.map(v => v >= 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'),
               tension: 0.4,
-              borderWidth: 3,
-              fill: true
+              borderWidth: 4,
+              fill: true,
+              pointRadius: 6,
+              pointHoverRadius: 8
             },
             {
-              label: '👍 긍정행동 (증가 목표)',
-              data: labels.map(label => weeklyData.POSITIVE[label]?.value || 0),
+              label: '✨ 긍정 행동 합계 (대체행동+긍정행동+목표달성)',
+              data: positiveIndexData,
               borderColor: '#3b82f6',
               backgroundColor: 'rgba(59, 130, 246, 0.1)',
               tension: 0.4,
               borderWidth: 3,
-              fill: true
+              fill: false,
+              pointRadius: 4,
+              borderDash: [5, 5]
             },
             {
-              label: '📊 목표달성 횟수 (3~5점)',
-              data: labels.map(label => weeklyData.GOAL[label]?.value || 0),
-              borderColor: '#a78bfa',
-              backgroundColor: 'rgba(167, 139, 250, 0.1)',
+              label: '🎯 표적행동 발생 횟수 (낮을수록 좋음)',
+              data: labels.map(label => weeklyData.TARGET[label]?.value || 0),
+              borderColor: '#ef4444',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
               tension: 0.4,
-              borderWidth: 3,
-              fill: true,
-              borderDash: [5, 5]
+              borderWidth: 2,
+              fill: false,
+              pointRadius: 4,
+              borderDash: [2, 4]
             }
           ];
 
@@ -3173,7 +3189,7 @@
 
       // 수업 및 평가 통합 CSV 내보내기
       const exportLessonsAndEvalsCSV = () => {
-        // Enhanced CSV export for AI analysis with comprehensive data
+        // Enhanced CSV export for AI analysis with comprehensive data including PBS behavior frequency
         const headers = [
           'ID',
           '날짜',
@@ -3186,18 +3202,39 @@
           '활동',
           '학생1_점수',
           '학생1_평가',
+          '학생1_표적행동',
+          '학생1_대체행동',
+          '학생1_긍정행동',
           '학생2_점수',
           '학생2_평가',
+          '학생2_표적행동',
+          '학생2_대체행동',
+          '학생2_긍정행동',
           '학생3_점수',
           '학생3_평가',
+          '학생3_표적행동',
+          '학생3_대체행동',
+          '학생3_긍정행동',
           '학생4_점수',
           '학생4_평가',
+          '학생4_표적행동',
+          '학생4_대체행동',
+          '학생4_긍정행동',
           '학생5_점수',
           '학생5_평가',
+          '학생5_표적행동',
+          '학생5_대체행동',
+          '학생5_긍정행동',
           '학생6_점수',
           '학생6_평가',
+          '학생6_표적행동',
+          '학생6_대체행동',
+          '학생6_긍정행동',
           '학생7_점수',
           '학생7_평가',
+          '학생7_표적행동',
+          '학생7_대체행동',
+          '학생7_긍정행동',
           '평균_점수',
           '목표달성_학생수_3점이상',
           '전체_평가_학생수'
@@ -3239,7 +3276,7 @@
             `"${(lesson.activity || '').replace(/"/g, '""')}"`,
           ];
 
-          // Add student scores and labels
+          // Add student scores, labels, and PBS behavior frequencies
           for (let i = 1; i <= 7; i++) {
             const studentId = `학생${i}`;
             const evalKey = `${lesson.id}-${studentId}`;
@@ -3249,8 +3286,39 @@
               ? ['결석', '미참여', '미도달', '최대촉구', '일부촉구', '목표달성'][score]
               : '';
 
+            // Get PBS behavior frequencies for this student and lesson
+            const lessonDate = lesson.date ? new Date(lesson.date) : null;
+            let targetFreq = '';
+            let replacementFreq = '';
+            let positiveFreq = '';
+
+            if (lessonDate) {
+              const targetBehavior = state.behaviorLog.find(b =>
+                b.lessonId === lesson.id &&
+                b.studentName === studentId &&
+                b.behaviorType === 'TARGET'
+              );
+              const replacementBehavior = state.behaviorLog.find(b =>
+                b.lessonId === lesson.id &&
+                b.studentName === studentId &&
+                b.behaviorType === 'REPLACEMENT'
+              );
+              const positiveBehavior = state.behaviorLog.find(b =>
+                b.lessonId === lesson.id &&
+                b.studentName === studentId &&
+                b.behaviorType === 'POSITIVE'
+              );
+
+              targetFreq = targetBehavior?.frequency !== undefined ? targetBehavior.frequency : '';
+              replacementFreq = replacementBehavior?.frequency !== undefined ? replacementBehavior.frequency : '';
+              positiveFreq = positiveBehavior?.frequency !== undefined ? positiveBehavior.frequency : '';
+            }
+
             row.push(score !== undefined && score !== null ? score : '');
             row.push(label);
+            row.push(targetFreq);
+            row.push(replacementFreq);
+            row.push(positiveFreq);
           }
 
           row.push(avgScore);
@@ -3260,10 +3328,10 @@
           rows.push(row);
         });
 
-        exportToCSV(rows, `수업및평가_AI분석용_${new Date().toISOString().slice(0,10)}.csv`);
+        exportToCSV(rows, `수업및평가_PBS행동포함_${new Date().toISOString().slice(0,10)}.csv`);
       };
 
-      // CSV 가져오기
+      // CSV 가져오기 (수업, 평가, PBS 행동 데이터 포함)
       const importLessonsCSV = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -3292,23 +3360,121 @@
               return;
             }
 
+            const headers = rows[0];
             const newLessons = [];
+            const newEvals = {};
+            const newBehaviorLogs = [];
             const errors = [];
+
+            // Check if this is the new format with PBS data
+            const hasPBSData = headers.includes('학생1_표적행동');
 
             for (let i = 1; i < rows.length; i++) {
               try {
-                const [id, date, dayOfWeek, period, subject, topic, goal, activity] = rows[i];
-                if (subject) {
-                  newLessons.push({
-                    id: id || uuid(),
-                    date: date ? new Date(date).getTime() : null,
-                    dayOfWeek,
-                    period,
-                    subject,
-                    topic,
-                    goal,
-                    activity
-                  });
+                const row = rows[i];
+                const lessonId = row[0] || uuid();
+                const dateStr = row[1] || row[2]; // Try both 날짜 and ISO_날짜
+                const lessonDate = dateStr ? new Date(dateStr).getTime() : null;
+
+                if (hasPBSData) {
+                  // New format with PBS data
+                  const lesson = {
+                    id: lessonId,
+                    date: lessonDate,
+                    dayOfWeek: row[3] || '',
+                    period: row[4] || '',
+                    subject: row[5] || '',
+                    topic: row[6] || '',
+                    goal: row[7] || '',
+                    activity: row[8] || ''
+                  };
+
+                  if (lesson.subject) {
+                    newLessons.push(lesson);
+
+                    // Import student evaluations and PBS behavior data
+                    for (let studentNum = 1; studentNum <= 7; studentNum++) {
+                      const studentId = `학생${studentNum}`;
+                      const baseIdx = 9 + (studentNum - 1) * 5; // 5 columns per student
+
+                      const score = row[baseIdx];
+                      const targetFreq = row[baseIdx + 2];
+                      const replacementFreq = row[baseIdx + 3];
+                      const positiveFreq = row[baseIdx + 4];
+
+                      // Import evaluation score
+                      if (score !== '' && score !== undefined && score !== null) {
+                        newEvals[`${lessonId}-${studentId}`] = {
+                          score: parseInt(score),
+                          memo: '',
+                          timestamp: lessonDate || Date.now(),
+                          updatedAt: Date.now()
+                        };
+                      }
+
+                      // Import PBS behavior frequencies
+                      if (lessonDate) {
+                        if (targetFreq !== '' && targetFreq !== undefined && targetFreq !== null) {
+                          newBehaviorLogs.push({
+                            id: uuid(),
+                            timestamp: lessonDate,
+                            studentName: studentId,
+                            behaviorType: 'TARGET',
+                            behavior: '표적행동 기록',
+                            antecedent: '수업 중 기록',
+                            consequence: '-',
+                            frequency: parseInt(targetFreq),
+                            interventionNote: '',
+                            lessonId: lessonId
+                          });
+                        }
+                        if (replacementFreq !== '' && replacementFreq !== undefined && replacementFreq !== null) {
+                          newBehaviorLogs.push({
+                            id: uuid(),
+                            timestamp: lessonDate,
+                            studentName: studentId,
+                            behaviorType: 'REPLACEMENT',
+                            behavior: '대체행동 기록',
+                            antecedent: '수업 중 기록',
+                            consequence: '-',
+                            frequency: parseInt(replacementFreq),
+                            interventionNote: '',
+                            lessonId: lessonId
+                          });
+                        }
+                        if (positiveFreq !== '' && positiveFreq !== undefined && positiveFreq !== null) {
+                          newBehaviorLogs.push({
+                            id: uuid(),
+                            timestamp: lessonDate,
+                            studentName: studentId,
+                            behaviorType: 'POSITIVE',
+                            behavior: '긍정행동 기록',
+                            antecedent: '수업 중 기록',
+                            consequence: '-',
+                            frequency: parseInt(positiveFreq),
+                            interventionNote: '',
+                            lessonId: lessonId
+                          });
+                        }
+                      }
+                    }
+                  }
+                } else {
+                  // Old format without PBS data
+                  const lesson = {
+                    id: lessonId,
+                    date: lessonDate,
+                    dayOfWeek: row[3] || '',
+                    period: row[4] || '',
+                    subject: row[5] || '',
+                    topic: row[6] || '',
+                    goal: row[7] || '',
+                    activity: row[8] || ''
+                  };
+
+                  if (lesson.subject) {
+                    newLessons.push(lesson);
+                  }
                 }
               } catch (rowError) {
                 errors.push(`${i + 1}번째 행 처리 실패: ${rowError.message}`);
@@ -3327,12 +3493,23 @@
               return;
             }
 
-            if (confirm(`${newLessons.length}개의 수업을 가져오시겠습니까?`)) {
+            const confirmMsg = hasPBSData
+              ? `${newLessons.length}개의 수업, ${Object.keys(newEvals).length}개의 평가, ${newBehaviorLogs.length}개의 PBS 행동 기록을 가져오시겠습니까?`
+              : `${newLessons.length}개의 수업을 가져오시겠습니까?`;
+
+            if (confirm(confirmMsg)) {
               setState(p => ({
                 ...p,
-                lessons: [...p.lessons, ...newLessons]
+                lessons: [...p.lessons, ...newLessons],
+                studentEvals: { ...p.studentEvals, ...newEvals },
+                behaviorLog: [...p.behaviorLog, ...newBehaviorLogs]
               }));
-              alert(`${newLessons.length}개의 수업을 성공적으로 가져왔습니다.`);
+
+              const successMsg = hasPBSData
+                ? `${newLessons.length}개의 수업, ${Object.keys(newEvals).length}개의 평가, ${newBehaviorLogs.length}개의 PBS 행동 기록을 성공적으로 가져왔습니다.`
+                : `${newLessons.length}개의 수업을 성공적으로 가져왔습니다.`;
+
+              alert(successMsg);
             }
           } catch (error) {
             console.error('CSV 파일 처리 오류:', error);
