@@ -1338,8 +1338,6 @@
     // 행동 유형 (PBS/행동지원)
     const BEHAVIOR_TYPES = {
       TARGET: { label: '표적행동', color: '#ef4444', icon: '🎯' },
-      REPLACEMENT: { label: '대체행동', color: '#10b981', icon: '✨' },
-      POSITIVE: { label: '긍정행동', color: '#3b82f6', icon: '👍' },
     };
 
     // 일반적인 행동 목록 (빠른 추가용)
@@ -2989,8 +2987,30 @@
           const lesson = p.lessons.find(l => l.id === lessonId);
           const timestamp = lesson ? lesson.date : nowMs();
 
+          // 기존 평가 점수 확인
+          const existingEval = p.studentEvals[`${lessonId}-${studentId}`];
+          const previousScore = existingEval?.score;
+
+          // 포인트 계산 (새로 부여되는 포인트만 계산)
+          const scorePoints = { 0: 0, 1: 0, 2: 5, 3: 10, 4: 15, 5: 20 };
+          let pointsToAdd = 0;
+
+          // 새로운 평가이거나 점수가 변경된 경우에만 포인트 부여
+          if (previousScore === undefined) {
+            // 처음 평가하는 경우
+            pointsToAdd = scorePoints[score] || 0;
+          } else if (previousScore !== score) {
+            // 점수가 변경된 경우: 차이만큼 추가/차감
+            pointsToAdd = (scorePoints[score] || 0) - (scorePoints[previousScore] || 0);
+          }
+
+          const newPoints = Math.max(0, (p.points || 0) + pointsToAdd);
+          const newLevel = Math.floor(newPoints / 100) + 1;
+
           return {
             ...p,
+            points: newPoints,
+            level: newLevel,
             studentEvals: {
               ...p.studentEvals,
               [`${lessonId}-${studentId}`]: { score, memo, updatedAt: nowMs(), timestamp }
@@ -3953,7 +3973,7 @@
                   { key: 'teaching', icon: '👨‍🏫', label: '수업관리' },
                   { key: 'behaviorAnalytics', icon: '📈', label: '행동 그래프' },
                   { key: 'focus', icon: '⏱️', label: '집중' },
-                  { key: 'points', icon: '🪙', label: '포인트' },
+                  { key: 'points', icon: '🪙', label: '레벨&포인트' },
                   { key: 'schedule', icon: '🚗', label: '일정' },
                   { key: 'calendar', icon: '📅', label: '캘린더' },
                   { key: 'analytics', icon: '📈', label: '통계' },
@@ -4792,23 +4812,57 @@
           {/* 포인트 관리 */}
           {view === 'points' && (
             <div style={styles.card} className="animate-in">
-              <h2 style={styles.h2} className="section-title">🪙 포인트 관리</h2>
-              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, marginBottom: 20 }}>
-                집중 성공, 과제 완료 등으로 포인트를 획득하고 관리하세요.
-              </p>
+              <h2 style={styles.h2} className="section-title">⭐ 레벨 & 포인트 시스템</h2>
+              <div style={{ padding: '16px 20px', marginBottom: 24, borderRadius: 12, background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(245, 158, 11, 0.15))', border: '1px solid rgba(251, 191, 36, 0.3)' }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#fbbf24', marginBottom: 12 }}>📚 레벨&포인트 제도 안내</h3>
+                <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, lineHeight: 1.6 }}>
+                  <p style={{ marginBottom: 10 }}>
+                    <strong>📈 포인트 획득 방법:</strong><br/>
+                    • 수업 참여 및 목표 달성 시 점수에 따라 포인트 획득<br/>
+                    • 행동 개선 및 긍정적 변화 시 추가 포인트 획득<br/>
+                    • 집중 세션 완료, 과제 완료 시 포인트 획득
+                  </p>
+                  <p style={{ marginBottom: 10 }}>
+                    <strong>⭐ 레벨 시스템:</strong><br/>
+                    • 100포인트마다 레벨 1씩 상승<br/>
+                    • 현재 레벨 = (총 포인트 ÷ 100) + 1<br/>
+                    • 레벨이 높을수록 학습 성취도가 높음을 의미
+                  </p>
+                  <p style={{ marginBottom: 0 }}>
+                    <strong>🎯 목표:</strong> 꾸준한 참여와 노력으로 레벨을 높여가며 성장해보세요!
+                  </p>
+                </div>
+              </div>
 
-              {/* 현재 포인트 표시 */}
+              {/* 현재 레벨 & 포인트 표시 */}
               <div style={{
-                padding: 30,
-                borderRadius: 16,
-                background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.3), rgba(245, 158, 11, 0.3))',
-                border: '2px solid rgba(251, 191, 36, 0.4)',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: 16,
                 marginBottom: 24,
-                textAlign: 'center',
               }}>
-                <div style={{ fontSize: 16, color: 'rgba(255,255,255,0.8)', marginBottom: 8 }}>보유 포인트</div>
-                <div style={{ fontSize: 48, fontWeight: 900, color: '#fbbf24' }}>{state.points.toLocaleString()}</div>
-                <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>P</div>
+                <div style={{
+                  padding: 30,
+                  borderRadius: 16,
+                  background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(124, 58, 237, 0.3))',
+                  border: '2px solid rgba(139, 92, 246, 0.4)',
+                  textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 16, color: 'rgba(255,255,255,0.8)', marginBottom: 8 }}>현재 레벨</div>
+                  <div style={{ fontSize: 48, fontWeight: 900, color: '#a78bfa' }}>Lv.{state.level || 1}</div>
+                  <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>다음 레벨까지 {100 - ((state.points || 0) % 100)}P</div>
+                </div>
+                <div style={{
+                  padding: 30,
+                  borderRadius: 16,
+                  background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.3), rgba(245, 158, 11, 0.3))',
+                  border: '2px solid rgba(251, 191, 36, 0.4)',
+                  textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 16, color: 'rgba(255,255,255,0.8)', marginBottom: 8 }}>보유 포인트</div>
+                  <div style={{ fontSize: 48, fontWeight: 900, color: '#fbbf24' }}>{(state.points || 0).toLocaleString()}</div>
+                  <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>총 획득 포인트</div>
+                </div>
               </div>
 
               {/* 포인트 조정 섹션 */}
@@ -5182,11 +5236,6 @@
               <div style={{ display: 'grid', gap: 12 }}>
                 {behaviorWeekDates.map((dayDate) => {
                   const dayLogs = weeklyBehaviorLogs.filter(log => isSameDay(log.timestamp, dayDate));
-                  const typeCounts = {};
-                  dayLogs.forEach(log => {
-                    const label = BEHAVIOR_TYPES[log.behaviorType]?.label || log.behaviorType;
-                    typeCounts[label] = (typeCounts[label] || 0) + 1;
-                  });
 
                   return (
                     <div
@@ -5205,25 +5254,6 @@
                         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
                           총 {dayLogs.length}건
                         </div>
-                      </div>
-
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                        {Object.entries(BEHAVIOR_TYPES).map(([key, type]) => (
-                          <div
-                            key={key}
-                            style={{
-                              padding: '6px 10px',
-                              borderRadius: 999,
-                              border: `1px solid ${type.color}55`,
-                              background: `${type.color}20`,
-                              fontSize: 12,
-                              color: 'white',
-                              fontWeight: 700,
-                            }}
-                          >
-                            {type.icon} {type.label} · {typeCounts[type.label] || 0}
-                          </div>
-                        ))}
                       </div>
 
                       {dayLogs.length === 0 ? (
@@ -5249,7 +5279,7 @@
                                   {log.studentName} · {log.behavior}
                                 </div>
                                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
-                                  {BEHAVIOR_TYPES[log.behaviorType]?.label} · {log.antecedent || '선행사건 미입력'}
+                                  {log.antecedent || '선행사건 미입력'}
                                 </div>
                               </div>
                               <div style={{ display: 'flex', gap: 6 }}>
@@ -5322,84 +5352,6 @@
                     })}
                   </div>
                 </div>
-
-                {/* 대체행동 그리드 */}
-                <div style={{ marginBottom: 24 }}>
-                  <h4 style={{ fontSize: 15, fontWeight: 700, color: BEHAVIOR_TYPES.REPLACEMENT.color, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {BEHAVIOR_TYPES.REPLACEMENT.icon} {BEHAVIOR_TYPES.REPLACEMENT.label}
-                  </h4>
-                  <div className="behavior-record-grid">
-                    <div className="behavior-cell" style={{ fontWeight: 900, background: 'rgba(16, 185, 129, 0.3)', color: '#6ee7b7', cursor: 'default' }}>학생</div>
-                    {[0, 1, 2, 3, 4, 5].map(freq => (
-                      <div key={freq} className="behavior-cell" style={{ fontWeight: 900, background: 'rgba(16, 185, 129, 0.3)', color: '#6ee7b7', cursor: 'default' }}>
-                        <div>{freq}{freq === 5 ? '+' : ''}회</div>
-                      </div>
-                    ))}
-                    {[1, 2, 3, 4, 5, 6, 7].map(studentNum => {
-                      const studentId = `학생${studentNum}`;
-                      const todayDate = new Date();
-                      return (
-                        <React.Fragment key={studentNum}>
-                          <div className="behavior-cell" style={{ fontWeight: 700, background: 'rgba(16, 185, 129, 0.1)', color: 'white', cursor: 'default' }}>
-                            {studentId}
-                          </div>
-                          {[0, 1, 2, 3, 4, 5].map(freq => {
-                            const currentFreq = getBehaviorFrequency(todayDate, studentId, 'REPLACEMENT');
-                            const isSelected = currentFreq === freq;
-                            return (
-                              <div
-                                key={freq}
-                                className={`behavior-cell behavior-freq-${freq} ${isSelected ? 'selected' : ''}`}
-                                onClick={() => saveBehaviorRecordQuick(todayDate, studentId, 'REPLACEMENT', freq)}
-                              >
-                                {isSelected ? '✓' : '-'}
-                              </div>
-                            );
-                          })}
-                        </React.Fragment>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 긍정행동 그리드 */}
-                <div>
-                  <h4 style={{ fontSize: 15, fontWeight: 700, color: BEHAVIOR_TYPES.POSITIVE.color, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {BEHAVIOR_TYPES.POSITIVE.icon} {BEHAVIOR_TYPES.POSITIVE.label}
-                  </h4>
-                  <div className="behavior-record-grid">
-                    <div className="behavior-cell" style={{ fontWeight: 900, background: 'rgba(59, 130, 246, 0.3)', color: '#93c5fd', cursor: 'default' }}>학생</div>
-                    {[0, 1, 2, 3, 4, 5].map(freq => (
-                      <div key={freq} className="behavior-cell" style={{ fontWeight: 900, background: 'rgba(59, 130, 246, 0.3)', color: '#93c5fd', cursor: 'default' }}>
-                        <div>{freq}{freq === 5 ? '+' : ''}회</div>
-                      </div>
-                    ))}
-                    {[1, 2, 3, 4, 5, 6, 7].map(studentNum => {
-                      const studentId = `학생${studentNum}`;
-                      const todayDate = new Date();
-                      return (
-                        <React.Fragment key={studentNum}>
-                          <div className="behavior-cell" style={{ fontWeight: 700, background: 'rgba(59, 130, 246, 0.1)', color: 'white', cursor: 'default' }}>
-                            {studentId}
-                          </div>
-                          {[0, 1, 2, 3, 4, 5].map(freq => {
-                            const currentFreq = getBehaviorFrequency(todayDate, studentId, 'POSITIVE');
-                            const isSelected = currentFreq === freq;
-                            return (
-                              <div
-                                key={freq}
-                                className={`behavior-cell behavior-freq-${freq} ${isSelected ? 'selected' : ''}`}
-                                onClick={() => saveBehaviorRecordQuick(todayDate, studentId, 'POSITIVE', freq)}
-                              >
-                                {isSelected ? '✓' : '-'}
-                              </div>
-                            );
-                          })}
-                        </React.Fragment>
-                      );
-                    })}
-                  </div>
-                </div>
               </div>
             </div>
           )}
@@ -5421,9 +5373,7 @@
                   <option value="weekly">주별 행동 발생 빈도</option>
                   <option value="dayOfWeek">요일별 행동 발생 분포</option>
                   <option value="period">교시별 행동 발생 분포</option>
-                  <option value="weeklyGoalAchievement">주별 수업목표 도달 빈도 (3~5점)</option>
-                  <option value="weeklyEvalFreq">주별 행동발생 빈도 (1~5점)</option>
-                  <option value="dailyEvalFreq">일별 행동발생 빈도 (1~5점)</option>
+                  <option value="weeklyGoalAchievement">주별 수업목표 도달 빈도</option>
                 </select>
                 <select
                   value={behaviorFilter.dateRange}
@@ -5445,16 +5395,6 @@
                   <option disabled>────────────</option>
                   {['학생1', '학생2', '학생3', '학생4', '학생5', '학생6', '학생7'].map(student => (
                     <option key={student} value={student}>{student}</option>
-                  ))}
-                </select>
-                <select
-                  value={behaviorFilter.behaviorType}
-                  onChange={(e) => setBehaviorFilter({ ...behaviorFilter, behaviorType: e.target.value })}
-                  className="form-select"
-                >
-                  <option value="ALL">전체 행동 유형</option>
-                  {Object.entries(BEHAVIOR_TYPES).map(([key, typeInfo]) => (
-                    <option key={key} value={key}>{typeInfo.icon} {typeInfo.label}</option>
                   ))}
                 </select>
 
@@ -5484,16 +5424,16 @@
                     marginBottom: 30,
                   }}>
                     {(() => {
-                      const byType = {};
+                      const byBehavior = {};
                       let totalFrequency = 0;
                       filteredBehaviorLog.forEach(b => {
-                        const type = BEHAVIOR_TYPES[b.behaviorType]?.label || b.behaviorType;
+                        const behaviorName = b.behavior || '미지정';
                         const freq = typeof b.frequency === 'number' ? b.frequency : 1;
-                        byType[type] = (byType[type] || 0) + freq;
+                        byBehavior[behaviorName] = (byBehavior[behaviorName] || 0) + freq;
                         totalFrequency += freq;
                       });
 
-                      const sorted = Object.entries(byType).sort((a, b) => b[1] - a[1]);
+                      const sorted = Object.entries(byBehavior).sort((a, b) => b[1] - a[1]);
                       const mostCommon = sorted.length > 0 ? sorted[0] : null;
 
                       return (
@@ -5536,7 +5476,7 @@
                             <div style={{ fontSize: 16, fontWeight: 900, color: '#a78bfa' }}>
                               {mostCommon ? `${mostCommon[0]} (${mostCommon[1]})` : '-'}
                             </div>
-                            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>최다 발생 유형</div>
+                            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>최다 발생 행동</div>
                           </div>
                         </>
                       );
@@ -5552,9 +5492,7 @@
                         behaviorFilter.chartType === 'weekly' ? '주별 행동 발생 빈도' :
                         behaviorFilter.chartType === 'dayOfWeek' ? '요일별 행동 발생 분포' :
                         behaviorFilter.chartType === 'period' ? '교시별 행동 발생 분포' :
-                        behaviorFilter.chartType === 'weeklyGoalAchievement' ? '주별 수업목표 도달 빈도 (3~5점)' :
-                        behaviorFilter.chartType === 'weeklyEvalFreq' ? '주별 행동발생 빈도 (1~5점)' :
-                        behaviorFilter.chartType === 'dailyEvalFreq' ? '일별 행동발생 빈도 (1~5점)' :
+                        behaviorFilter.chartType === 'weeklyGoalAchievement' ? '주별 수업목표 도달 빈도' :
                         '차트'
                       }{behaviorFilter.chartType !== 'pbsProgress' ? ' (학생별 추이)' : ''}
                     </h3>
@@ -6027,21 +5965,6 @@
                     autoComplete="name"
                     inputMode="text"
                   />
-                </div>
-
-                <div className="form-field">
-                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.8)', marginBottom: 6, fontWeight: 700 }}>
-                    행동 유형 *
-                  </label>
-                  <select
-                    value={editingBehavior.behaviorType || 'TARGET'}
-                    onChange={(e) => setEditingBehavior({ ...editingBehavior, behaviorType: e.target.value })}
-                    className="form-select"
-                  >
-                    {Object.entries(BEHAVIOR_TYPES).map(([key, type]) => (
-                      <option key={key} value={key}>{type.icon} {type.label}</option>
-                    ))}
-                  </select>
                 </div>
 
                 <div className="form-field">
