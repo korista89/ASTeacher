@@ -1338,8 +1338,6 @@
     // 행동 유형 (PBS/행동지원)
     const BEHAVIOR_TYPES = {
       TARGET: { label: '표적행동', color: '#ef4444', icon: '🎯' },
-      REPLACEMENT: { label: '대체행동', color: '#10b981', icon: '✨' },
-      POSITIVE: { label: '긍정행동', color: '#3b82f6', icon: '👍' },
     };
 
     // 일반적인 행동 목록 (빠른 추가용)
@@ -2993,38 +2991,24 @@
           '학생1_점수',
           '학생1_평가',
           '학생1_표적행동',
-          '학생1_대체행동',
-          '학생1_긍정행동',
           '학생2_점수',
           '학생2_평가',
           '학생2_표적행동',
-          '학생2_대체행동',
-          '학생2_긍정행동',
           '학생3_점수',
           '학생3_평가',
           '학생3_표적행동',
-          '학생3_대체행동',
-          '학생3_긍정행동',
           '학생4_점수',
           '학생4_평가',
           '학생4_표적행동',
-          '학생4_대체행동',
-          '학생4_긍정행동',
           '학생5_점수',
           '학생5_평가',
           '학생5_표적행동',
-          '학생5_대체행동',
-          '학생5_긍정행동',
           '학생6_점수',
           '학생6_평가',
           '학생6_표적행동',
-          '학생6_대체행동',
-          '학생6_긍정행동',
           '학생7_점수',
           '학생7_평가',
           '학생7_표적행동',
-          '학생7_대체행동',
-          '학생7_긍정행동',
           '평균_점수',
           '목표달성_학생수_3점이상',
           '전체_평가_학생수'
@@ -3066,7 +3050,7 @@
             `"${(lesson.activity || '').replace(/"/g, '""')}"`,
           ];
 
-          // Add student scores, labels, and PBS behavior frequency
+          // Add student scores, labels, and PBS behavior frequency (TARGET only)
           for (let i = 1; i <= 7; i++) {
             const studentId = `학생${i}`;
             const evalKey = `${lesson.id}-${studentId}`;
@@ -3076,17 +3060,13 @@
               ? ['결석', '미참여', '미도달', '최대촉구', '일부촉구', '목표달성'][score]
               : '';
 
-            // Get PBS behavior frequency for this lesson
+            // Get PBS behavior frequency for this lesson (TARGET only)
             const lessonDate = lesson.date ? new Date(lesson.date).getTime() : null;
             const targetFreq = lessonDate ? getBehaviorFrequency(lessonDate, studentId, 'TARGET', lesson.id) : null;
-            const replacementFreq = lessonDate ? getBehaviorFrequency(lessonDate, studentId, 'REPLACEMENT', lesson.id) : null;
-            const positiveFreq = lessonDate ? getBehaviorFrequency(lessonDate, studentId, 'POSITIVE', lesson.id) : null;
 
             row.push(score !== undefined && score !== null ? score : '');
             row.push(label);
             row.push(targetFreq !== null ? targetFreq : '');
-            row.push(replacementFreq !== null ? replacementFreq : '');
-            row.push(positiveFreq !== null ? positiveFreq : '');
           }
 
           row.push(avgScore);
