@@ -1423,7 +1423,12 @@
     }
 
     function saveState(st) {
-      localStorage.setItem(LS_KEY, JSON.stringify(st));
+      try {
+        localStorage.setItem(LS_KEY, JSON.stringify(st));
+      } catch (error) {
+        console.error('Failed to save state to localStorage:', error);
+        // Silently fail to prevent app crashes when localStorage is full or unavailable
+      }
     }
 
     // CSV 내보내기/가져오기 함수
