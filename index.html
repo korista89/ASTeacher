@@ -1338,6 +1338,8 @@
     // 행동 유형 (PBS/행동지원)
     const BEHAVIOR_TYPES = {
       TARGET: { label: '표적행동', color: '#ef4444', icon: '🎯' },
+      REPLACEMENT: { label: '대체행동', color: '#10b981', icon: '✨' },
+      POSITIVE: { label: '긍정행동', color: '#3b82f6', icon: '👍' },
     };
 
     // 일반적인 행동 목록 (빠른 추가용)
@@ -1943,7 +1945,7 @@
       const [showMobileMenu, setShowMobileMenu] = useState(false);
       const [editingPointsRecord, setEditingPointsRecord] = useState(null);
       const [newPointsRecord, setNewPointsRecord] = useState({ amount: 0, reason: '', type: 'earn' });
-      const [behaviorFilter, setBehaviorFilter] = useState({ dateRange: 30, student: 'ALL', chartType: 'pbsProgress', behaviorType: 'ALL' });
+      const [behaviorFilter, setBehaviorFilter] = useState({ dateRange: 30, student: 'ALL', chartType: 'daily', behaviorType: 'ALL' });
       const [reportType, setReportType] = useState('weekly');
       const [lessonWeekStart, setLessonWeekStart] = useState(() => startOfWeek(new Date()));
       const [behaviorWeekStart, setBehaviorWeekStart] = useState(() => startOfWeek(new Date()));
@@ -2202,14 +2204,26 @@
         });
 
         filteredData.forEach(b => {
-          if (b.behaviorType !== 'TARGET') return;
+          let period = null;
 
-          const hour = new Date(b.timestamp).getHours();
-          const periodMap = { 9: '1교시', 10: '2교시', 11: '3교시', 12: '4교시', 13: '5교시', 14: '6교시', 15: '7교시' };
-          const period = periodMap[hour];
+          // Try to get period from lesson if lessonId exists
+          if (b.lessonId) {
+            const lesson = state.lessons.find(l => l.id === b.lessonId);
+            if (lesson && lesson.period) {
+              period = lesson.period;
+            }
+          }
+
+          // Fallback to timestamp-based period mapping
+          if (!period) {
+            const hour = new Date(b.timestamp).getHours();
+            const periodMap = { 9: '1교시', 10: '2교시', 11: '3교시', 12: '4교시', 13: '5교시', 14: '6교시', 15: '7교시' };
+            period = periodMap[hour];
+          }
 
           if (period && periodData[period]) {
-            const freq = getFrequency(b);
+            // Cap frequency at 5 as per user requirement (5회 이상은 5로 간주)
+            const freq = Math.min(getFrequency(b), 5);
             if (students.includes(b.studentName)) {
               periodData[period][b.studentName] += freq;
             }
@@ -2514,11 +2528,6 @@
           const result = processDailyEvalChart(state.studentEvals, students, now, startDate, behaviorFilter.dateRange);
           labels = result.labels;
           datasets = buildDatasets(labels, result.data, students, behaviorFilter.student, studentColors);
-
-        } else if (behaviorFilter.chartType === 'pbsProgress') {
-          const result = processPbsProgressChart(filteredData, state.studentEvals, behaviorFilter.student, now, startDate, behaviorFilter.dateRange);
-          labels = result.labels;
-          datasets = result.datasets;
 
         } else if (behaviorFilter.chartType === 'studentGoalAchievement') {
           const result = processStudentGoalAchievementChart(state.studentEvals, students, studentColors, startDate);
@@ -2970,7 +2979,7 @@
 
       // 수업 및 평가 통합 CSV 내보내기
       const exportLessonsAndEvalsCSV = () => {
-        // Enhanced CSV export for AI analysis with comprehensive data
+        // Enhanced CSV export for AI analysis with comprehensive data including PBS behavior frequency
         const headers = [
           'ID',
           '날짜',
@@ -2983,18 +2992,39 @@
           '활동',
           '학생1_점수',
           '학생1_평가',
+          '학생1_표적행동',
+          '학생1_대체행동',
+          '학생1_긍정행동',
           '학생2_점수',
           '학생2_평가',
+          '학생2_표적행동',
+          '학생2_대체행동',
+          '학생2_긍정행동',
           '학생3_점수',
           '학생3_평가',
+          '학생3_표적행동',
+          '학생3_대체행동',
+          '학생3_긍정행동',
           '학생4_점수',
           '학생4_평가',
+          '학생4_표적행동',
+          '학생4_대체행동',
+          '학생4_긍정행동',
           '학생5_점수',
           '학생5_평가',
+          '학생5_표적행동',
+          '학생5_대체행동',
+          '학생5_긍정행동',
           '학생6_점수',
           '학생6_평가',
+          '학생6_표적행동',
+          '학생6_대체행동',
+          '학생6_긍정행동',
           '학생7_점수',
           '학생7_평가',
+          '학생7_표적행동',
+          '학생7_대체행동',
+          '학생7_긍정행동',
           '평균_점수',
           '목표달성_학생수_3점이상',
           '전체_평가_학생수'
@@ -3036,7 +3066,7 @@
             `"${(lesson.activity || '').replace(/"/g, '""')}"`,
           ];
 
-          // Add student scores and labels
+          // Add student scores, labels, and PBS behavior frequency
           for (let i = 1; i <= 7; i++) {
             const studentId = `학생${i}`;
             const evalKey = `${lesson.id}-${studentId}`;
@@ -3046,8 +3076,17 @@
               ? ['결석', '미참여', '미도달', '최대촉구', '일부촉구', '목표달성'][score]
               : '';
 
+            // Get PBS behavior frequency for this lesson
+            const lessonDate = lesson.date ? new Date(lesson.date).getTime() : null;
+            const targetFreq = lessonDate ? getBehaviorFrequency(lessonDate, studentId, 'TARGET', lesson.id) : null;
+            const replacementFreq = lessonDate ? getBehaviorFrequency(lessonDate, studentId, 'REPLACEMENT', lesson.id) : null;
+            const positiveFreq = lessonDate ? getBehaviorFrequency(lessonDate, studentId, 'POSITIVE', lesson.id) : null;
+
             row.push(score !== undefined && score !== null ? score : '');
             row.push(label);
+            row.push(targetFreq !== null ? targetFreq : '');
+            row.push(replacementFreq !== null ? replacementFreq : '');
+            row.push(positiveFreq !== null ? positiveFreq : '');
           }
 
           row.push(avgScore);
@@ -5402,8 +5441,6 @@
                   onChange={(e) => setBehaviorFilter({ ...behaviorFilter, chartType: e.target.value })}
                   className="form-select"
                 >
-                  <option value="pbsProgress">📈 PBS 종합 진전도 (주별 통합)</option>
-                  <option disabled>────────────</option>
                   <option value="daily">일별 행동 발생 빈도</option>
                   <option value="weekly">주별 행동 발생 빈도</option>
                   <option value="dayOfWeek">요일별 행동 발생 분포</option>
@@ -5525,7 +5562,6 @@
                   <div className="chart-container">
                     <h3 style={{ fontSize: 16, fontWeight: 700, color: 'white', marginBottom: 16 }}>
                       📊 {
-                        behaviorFilter.chartType === 'pbsProgress' ? 'PBS 종합 진전도 - 행동개선 및 학습목표 달성' :
                         behaviorFilter.chartType === 'daily' ? '일별 행동 발생 빈도' :
                         behaviorFilter.chartType === 'weekly' ? '주별 행동 발생 빈도' :
                         behaviorFilter.chartType === 'dayOfWeek' ? '요일별 행동 발생 분포' :
@@ -5534,41 +5570,9 @@
                         behaviorFilter.chartType === 'studentGoalAchievement' ? '학생별 수업목표 도달 빈도' :
                         behaviorFilter.chartType === 'studentBehaviorFreq' ? '학생별 행동 발생 빈도' :
                         '차트'
-                      }{behaviorFilter.chartType !== 'pbsProgress' && behaviorFilter.chartType !== 'studentGoalAchievement' && behaviorFilter.chartType !== 'studentBehaviorFreq' ? ' (학생별 추이)' : ''}
+                      }{behaviorFilter.chartType !== 'studentGoalAchievement' && behaviorFilter.chartType !== 'studentBehaviorFreq' ? ' (학생별 추이)' : ''}
                     </h3>
                     <canvas id="behaviorLineChart"></canvas>
-
-                    {/* PBS 차트 해석 가이드 */}
-                    {behaviorFilter.chartType === 'pbsProgress' && (
-                      <div style={{
-                        marginTop: 20,
-                        padding: 16,
-                        background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2))',
-                        borderRadius: 12,
-                        border: '1px solid rgba(139, 92, 246, 0.4)'
-                      }}>
-                        <h4 style={{ fontSize: 14, fontWeight: 700, color: '#a78bfa', marginBottom: 12 }}>
-                          💡 PBS 차트 해석 가이드
-                        </h4>
-                        <ul style={{ fontSize: 13, color: 'rgba(255,255,255,0.9)', lineHeight: 1.8, paddingLeft: 20, margin: 0 }}>
-                          <li><strong style={{ color: '#ef4444' }}>🎯 표적행동(빨간선)</strong>: 감소하는 추세가 긍정적입니다. 행동지원 계획이 효과적임을 의미합니다.</li>
-                          <li><strong style={{ color: '#10b981' }}>✨ 대체행동(초록선)</strong>: 증가하는 추세가 긍정적입니다. 적절한 대안 행동을 학습하고 있음을 의미합니다.</li>
-                          <li><strong style={{ color: '#3b82f6' }}>👍 긍정행동(파란선)</strong>: 증가하는 추세가 긍정적입니다. 바람직한 행동이 강화되고 있음을 의미합니다.</li>
-                          <li><strong style={{ color: '#a78bfa' }}>📊 목표달성(보라 점선)</strong>: 증가하는 추세가 긍정적입니다. 학습목표를 달성하는 횟수가 늘어나고 있음을 의미합니다.</li>
-                        </ul>
-                        <div style={{
-                          marginTop: 12,
-                          padding: 12,
-                          background: 'rgba(16, 185, 129, 0.2)',
-                          borderRadius: 8,
-                          fontSize: 12,
-                          color: '#10b981',
-                          fontWeight: 700
-                        }}>
-                          ✅ 이상적인 PBS 진전도: 표적행동 ↓ / 대체행동 ↑ / 긍정행동 ↑ / 목표달성 ↑
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                 </div>
