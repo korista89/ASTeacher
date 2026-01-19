@@ -2254,7 +2254,7 @@
             const weekLabel = getWeekLabel(weekStart);
 
             if (weeklyData[weekLabel]) {
-              const studentId = key.split('-')[1];
+              const studentId = key.split('-').pop(); // Extract last part (학생ID) from "lessonId-학생ID"
               if (students.includes(studentId)) {
                 weeklyData[weekLabel][studentId]++;
               }
@@ -2286,7 +2286,7 @@
             const dateStr = new Date(evalData.timestamp).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
 
             if (dailyData[dateStr]) {
-              const studentId = key.split('-')[1];
+              const studentId = key.split('-').pop(); // Extract last part (학생ID) from "lessonId-학생ID"
               if (students.includes(studentId)) {
                 dailyData[dateStr][studentId]++;
               }
@@ -2402,7 +2402,7 @@
 
         Object.entries(studentEvals).forEach(([key, evalData]) => {
           if (evalData.score >= 3 && evalData.score <= 5 && evalData.timestamp >= startDate) {
-            const studentId = key.split('-')[1];
+            const studentId = key.split('-').pop(); // Extract last part (학생ID) from "lessonId-학생ID"
             if (students.includes(studentId)) {
               studentData[studentId]++;
             }
@@ -5415,41 +5415,58 @@
             <div style={styles.card} className="animate-in">
               <h2 style={styles.h2} className="section-title">📈 행동 데이터 분석 및 시각화</h2>
 
+              {/* 차트 사용 안내 */}
+              <div style={{
+                marginBottom: 16,
+                padding: 12,
+                background: 'rgba(59, 130, 246, 0.2)',
+                borderRadius: 8,
+                border: '1px solid rgba(59, 130, 246, 0.4)',
+                fontSize: 13,
+                color: 'rgba(255,255,255,0.9)',
+                lineHeight: 1.6
+              }}>
+                <strong style={{ color: '#60a5fa' }}>💡 차트 사용 가이드:</strong>
+                {' '}차트 종류를 선택하고, 기간과 학생을 필터링하여 데이터를 분석하세요.
+                '전체 데이터'를 선택하면 모든 학생의 개별 라인이 표시되고, '학급 합계'는 전체 통합 데이터만 보여줍니다.
+              </div>
+
               <div className="chart-actions" style={{ marginBottom: 20 }}>
                 <select
                   value={behaviorFilter.chartType}
                   onChange={(e) => setBehaviorFilter({ ...behaviorFilter, chartType: e.target.value })}
                   className="form-select"
                 >
-                  <option value="daily">일별 행동 발생 빈도</option>
-                  <option value="weekly">주별 행동 발생 빈도</option>
-                  <option value="dayOfWeek">요일별 행동 발생 분포</option>
-                  <option value="period">교시별 행동 발생 분포</option>
-                  <option value="weeklyGoalAchievement">주별 수업목표 도달 빈도</option>
+                  <option value="daily">📅 일별 행동 발생 빈도</option>
+                  <option value="weekly">📊 주별 행동 발생 빈도</option>
+                  <option value="dayOfWeek">📆 요일별 행동 발생 분포</option>
+                  <option value="period">⏰ 교시별 행동 발생 분포</option>
+                  <option value="weeklyGoalAchievement">🎯 주별 수업목표 도달 빈도 (3~5점)</option>
                   <option disabled>────────────</option>
-                  <option value="studentGoalAchievement">학생별 수업목표 도달 빈도</option>
-                  <option value="studentBehaviorFreq">학생별 행동 발생 빈도</option>
+                  <option value="studentGoalAchievement">👥 학생별 수업목표 도달 빈도 (3~5점)</option>
+                  <option value="studentBehaviorFreq">📈 학생별 행동 발생 빈도</option>
                 </select>
                 <select
                   value={behaviorFilter.dateRange}
                   onChange={(e) => setBehaviorFilter({ ...behaviorFilter, dateRange: parseInt(e.target.value) })}
                   className="form-select"
                 >
-                  <option value={7}>최근 7일</option>
-                  <option value={30}>최근 30일</option>
-                  <option value={90}>최근 90일</option>
-                  <option value="march1">({new Date().getFullYear()}년) 3월 1일 ~ 현재</option>
+                  <option value={7}>📅 최근 7일</option>
+                  <option value={30}>📅 최근 30일</option>
+                  <option value={90}>📅 최근 90일</option>
+                  <option value="march1">🗓️ ({new Date().getFullYear()}년) 3월 1일 ~ 현재</option>
                 </select>
                 <select
                   value={behaviorFilter.student}
                   onChange={(e) => setBehaviorFilter({ ...behaviorFilter, student: e.target.value })}
                   className="form-select"
+                  style={{ fontWeight: 600 }}
                 >
-                  <option value="ALL">전체 데이터 (모든 학생)</option>
-                  <option value="CLASS_TOTAL">학급 합계</option>
+                  <option value="ALL">📊 전체 데이터 (모든 학생 개별 표시)</option>
+                  <option value="CLASS_TOTAL">📈 학급 합계 (통합 데이터만)</option>
                   <option disabled>────────────</option>
                   {['학생1', '학생2', '학생3', '학생4', '학생5', '학생6', '학생7'].map(student => (
-                    <option key={student} value={student}>{student}</option>
+                    <option key={student} value={student}>👤 {student}</option>
                   ))}
                 </select>
 
@@ -5553,6 +5570,47 @@
                       }{behaviorFilter.chartType !== 'studentGoalAchievement' && behaviorFilter.chartType !== 'studentBehaviorFreq' ? ' (학생별 추이)' : ''}
                     </h3>
                     <canvas id="behaviorLineChart"></canvas>
+
+                    {/* 차트 해석 가이드 */}
+                    {behaviorFilter.chartType === 'weeklyGoalAchievement' && (
+                      <div style={{
+                        marginTop: 20,
+                        padding: 14,
+                        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(59, 130, 246, 0.2))',
+                        borderRadius: 10,
+                        border: '1px solid rgba(16, 185, 129, 0.4)',
+                        fontSize: 13,
+                        color: 'rgba(255,255,255,0.95)',
+                        lineHeight: 1.7
+                      }}>
+                        <strong style={{ color: '#10b981', fontSize: 14 }}>📊 주별 수업목표 도달 빈도 해석 가이드</strong>
+                        <ul style={{ marginTop: 10, paddingLeft: 20, marginBottom: 0 }}>
+                          <li><strong style={{ color: '#60a5fa' }}>3~5점 평가만 카운트:</strong> 최대촉구(3점), 일부촉구(4점), 목표달성(5점) 평가 횟수를 집계합니다.</li>
+                          <li><strong style={{ color: '#60a5fa' }}>증가 추세:</strong> 학생의 수업 참여도와 목표 도달 능력이 향상되고 있음을 의미합니다.</li>
+                          <li><strong style={{ color: '#60a5fa' }}>정체/감소 추세:</strong> 추가 지원이나 교수 전략 수정이 필요할 수 있습니다.</li>
+                        </ul>
+                      </div>
+                    )}
+
+                    {behaviorFilter.chartType === 'studentGoalAchievement' && (
+                      <div style={{
+                        marginTop: 20,
+                        padding: 14,
+                        background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(236, 72, 153, 0.2))',
+                        borderRadius: 10,
+                        border: '1px solid rgba(139, 92, 246, 0.4)',
+                        fontSize: 13,
+                        color: 'rgba(255,255,255,0.95)',
+                        lineHeight: 1.7
+                      }}>
+                        <strong style={{ color: '#a78bfa', fontSize: 14 }}>👥 학생별 목표 도달 빈도 해석 가이드</strong>
+                        <ul style={{ marginTop: 10, paddingLeft: 20, marginBottom: 0 }}>
+                          <li><strong style={{ color: '#ec4899' }}>막대 높이:</strong> 각 학생이 3~5점을 받은 총 횟수입니다.</li>
+                          <li><strong style={{ color: '#ec4899' }}>학생 간 비교:</strong> 개별 학생의 강점 영역과 지원 필요 영역을 파악할 수 있습니다.</li>
+                          <li><strong style={{ color: '#ec4899' }}>데이터 기반 IEP:</strong> 이 데이터는 IEP 목표 수정 및 진전도 보고서에 활용하세요.</li>
+                        </ul>
+                      </div>
+                    )}
                   </div>
 
                 </div>
@@ -5672,12 +5730,29 @@
                     <h3 style={{ fontSize: 16, fontWeight: 700, color: 'white', marginBottom: 12 }}>
                       📊 학생별 수업목표 달성도 평가
                     </h3>
-                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginBottom: 12, lineHeight: 1.6 }}>
-                      <p style={{ marginBottom: 8 }}>
-                        <strong>평가 척도:</strong> 0(결석) / 1(미참여) / 2(미도달) / 3(최대촉구) / 4(일부촉구) / 5(목표달성)
+                    <div style={{
+                      marginBottom: 12,
+                      padding: 12,
+                      background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2))',
+                      borderRadius: 8,
+                      border: '1px solid rgba(139, 92, 246, 0.3)',
+                      fontSize: 12,
+                      color: 'rgba(255,255,255,0.95)',
+                      lineHeight: 1.7
+                    }}>
+                      <p style={{ marginBottom: 10, fontWeight: 700, color: '#c4b5fd' }}>
+                        📏 평가 척도 (0~5점)
                       </p>
-                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', margin: 0 }}>
-                        💡 촉구 수준: 3점(신체적 촉구/모델링) → 4점(언어적 촉구/부분 도움) → 5점(독립 수행)
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, fontSize: 11 }}>
+                        <div><strong style={{ color: '#9ca3af' }}>0:</strong> 결석</div>
+                        <div><strong style={{ color: '#ef4444' }}>1:</strong> 미참여</div>
+                        <div><strong style={{ color: '#eab308' }}>2:</strong> 미도달</div>
+                        <div><strong style={{ color: '#f97316' }}>3:</strong> 최대촉구</div>
+                        <div><strong style={{ color: '#3b82f6' }}>4:</strong> 일부촉구</div>
+                        <div><strong style={{ color: '#10b981' }}>5:</strong> 목표달성</div>
+                      </div>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', margin: 0, marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                        💡 <strong>3~5점이 수업목표 도달로 집계됩니다.</strong> 촉구 수준: 3점(신체/모델링) → 4점(언어/부분) → 5점(독립)
                       </p>
                     </div>
                     <div className="student-eval-grid">
