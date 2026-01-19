@@ -2396,6 +2396,8 @@
       };
 
       // Process student goal achievement chart (bar chart)
+      // Count NUMBER OF LESSONS where student achieved 3-5 points (NOT sum of scores)
+      // 3점, 4점, 5점 각각을 1회로 카운트 (점수 합계가 아님!)
       const processStudentGoalAchievementChart = (studentEvals, students, studentColors, startDate) => {
         const studentData = {};
         students.forEach(s => studentData[s] = 0);
@@ -2404,14 +2406,14 @@
           if (evalData.score >= 3 && evalData.score <= 5 && evalData.timestamp >= startDate) {
             const studentId = key.split('-').pop(); // Extract last part (학생ID) from "lessonId-학생ID"
             if (students.includes(studentId)) {
-              studentData[studentId]++;
+              studentData[studentId]++; // Count as 1 lesson (not adding the score value)
             }
           }
         });
 
         const labels = students;
         const datasets = [{
-          label: '수업목표 도달 횟수 (3~5점)',
+          label: '수업목표 도달 수업 수 (3~5점 받은 수업 횟수)',
           data: labels.map(label => studentData[label]),
           backgroundColor: students.map(s => studentColors[s] + '80'),
           borderColor: students.map(s => studentColors[s]),
@@ -2435,6 +2437,45 @@
         const labels = students;
         const datasets = [{
           label: '행동 발생 횟수',
+          data: labels.map(label => studentData[label]),
+          backgroundColor: students.map(s => studentColors[s] + '80'),
+          borderColor: students.map(s => studentColors[s]),
+          borderWidth: 2,
+        }];
+
+        return { labels, datasets };
+      };
+
+      // Process target behavior lesson count chart (bar chart)
+      // Count NUMBER OF LESSONS where target behavior occurred (1+ times)
+      // 표적행동이 1회라도 발생한 수업의 수를 카운트
+      const processTargetBehaviorLessonCount = (behaviorLog, students, studentColors, startDate) => {
+        const studentLessons = {};
+        students.forEach(s => studentLessons[s] = new Set()); // Use Set to track unique lesson IDs
+
+        behaviorLog.forEach(b => {
+          // Only count TARGET behaviors within date range that have a lessonId
+          if (b.behaviorType === 'TARGET' &&
+              b.timestamp >= startDate &&
+              b.lessonId &&
+              students.includes(b.studentName)) {
+            // Check if frequency is 1 or more
+            const freq = getFrequency(b);
+            if (freq >= 1) {
+              studentLessons[b.studentName].add(b.lessonId);
+            }
+          }
+        });
+
+        // Convert Sets to counts
+        const studentData = {};
+        students.forEach(s => {
+          studentData[s] = studentLessons[s].size;
+        });
+
+        const labels = students;
+        const datasets = [{
+          label: '표적행동 발생 수업 수 (1회 이상)',
           data: labels.map(label => studentData[label]),
           backgroundColor: students.map(s => studentColors[s] + '80'),
           borderColor: students.map(s => studentColors[s]),
@@ -2536,13 +2577,20 @@
           const result = processStudentBehaviorFreqChart(filteredData, students, studentColors);
           labels = result.labels;
           datasets = result.datasets;
+
+        } else if (behaviorFilter.chartType === 'targetBehaviorLessonCount') {
+          const result = processTargetBehaviorLessonCount(state.behaviorLog, students, studentColors, startDate);
+          labels = result.labels;
+          datasets = result.datasets;
         }
 
         // Create or update chart
         if (lineChartRef.current) {
           lineChartRef.current.destroy();
         }
-        const chartType = (behaviorFilter.chartType === 'studentGoalAchievement' || behaviorFilter.chartType === 'studentBehaviorFreq') ? 'bar' : 'line';
+        const chartType = (behaviorFilter.chartType === 'studentGoalAchievement' ||
+                           behaviorFilter.chartType === 'studentBehaviorFreq' ||
+                           behaviorFilter.chartType === 'targetBehaviorLessonCount') ? 'bar' : 'line';
         lineChartRef.current = new Chart(canvas, {
           type: chartType,
           data: {
@@ -5445,6 +5493,7 @@
                   <option disabled>────────────</option>
                   <option value="studentGoalAchievement">👥 학생별 수업목표 도달 빈도 (3~5점)</option>
                   <option value="studentBehaviorFreq">📈 학생별 행동 발생 빈도</option>
+                  <option value="targetBehaviorLessonCount">🎯 표적행동 발생 수업 수</option>
                 </select>
                 <select
                   value={behaviorFilter.dateRange}
@@ -5566,8 +5615,11 @@
                         behaviorFilter.chartType === 'weeklyGoalAchievement' ? '주별 수업목표 도달 빈도' :
                         behaviorFilter.chartType === 'studentGoalAchievement' ? '학생별 수업목표 도달 빈도' :
                         behaviorFilter.chartType === 'studentBehaviorFreq' ? '학생별 행동 발생 빈도' :
+                        behaviorFilter.chartType === 'targetBehaviorLessonCount' ? '표적행동 발생 수업 수' :
                         '차트'
-                      }{behaviorFilter.chartType !== 'studentGoalAchievement' && behaviorFilter.chartType !== 'studentBehaviorFreq' ? ' (학생별 추이)' : ''}
+                      }{behaviorFilter.chartType !== 'studentGoalAchievement' &&
+                        behaviorFilter.chartType !== 'studentBehaviorFreq' &&
+                        behaviorFilter.chartType !== 'targetBehaviorLessonCount' ? ' (학생별 추이)' : ''}
                     </h3>
                     <canvas id="behaviorLineChart"></canvas>
 
@@ -5605,9 +5657,30 @@
                       }}>
                         <strong style={{ color: '#a78bfa', fontSize: 14 }}>👥 학생별 목표 도달 빈도 해석 가이드</strong>
                         <ul style={{ marginTop: 10, paddingLeft: 20, marginBottom: 0 }}>
-                          <li><strong style={{ color: '#ec4899' }}>막대 높이:</strong> 각 학생이 3~5점을 받은 총 횟수입니다.</li>
+                          <li><strong style={{ color: '#ec4899' }}>막대 높이:</strong> 각 학생이 3~5점을 받은 수업의 총 횟수입니다 (점수 합계가 아닙니다).</li>
                           <li><strong style={{ color: '#ec4899' }}>학생 간 비교:</strong> 개별 학생의 강점 영역과 지원 필요 영역을 파악할 수 있습니다.</li>
                           <li><strong style={{ color: '#ec4899' }}>데이터 기반 IEP:</strong> 이 데이터는 IEP 목표 수정 및 진전도 보고서에 활용하세요.</li>
+                        </ul>
+                      </div>
+                    )}
+
+                    {behaviorFilter.chartType === 'targetBehaviorLessonCount' && (
+                      <div style={{
+                        marginTop: 20,
+                        padding: 14,
+                        background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(251, 146, 60, 0.2))',
+                        borderRadius: 10,
+                        border: '1px solid rgba(239, 68, 68, 0.4)',
+                        fontSize: 13,
+                        color: 'rgba(255,255,255,0.95)',
+                        lineHeight: 1.7
+                      }}>
+                        <strong style={{ color: '#fca5a5', fontSize: 14 }}>🎯 표적행동 발생 수업 수 해석 가이드</strong>
+                        <ul style={{ marginTop: 10, paddingLeft: 20, marginBottom: 0 }}>
+                          <li><strong style={{ color: '#fb923c' }}>막대 높이:</strong> 표적행동이 1회 이상 발생한 수업의 총 개수입니다.</li>
+                          <li><strong style={{ color: '#fb923c' }}>감소 추세가 목표:</strong> 막대가 낮아질수록 표적행동이 발생하는 수업이 줄어들고 있음을 의미합니다.</li>
+                          <li><strong style={{ color: '#fb923c' }}>행동지원 효과성:</strong> 이 데이터로 PBS 전략의 효과를 평가하고 필요시 중재 방법을 수정하세요.</li>
+                          <li><strong style={{ color: '#fb923c' }}>예방 전략:</strong> 표적행동이 자주 발생하는 학생은 선행사건 수정이나 환경 조정이 필요할 수 있습니다.</li>
                         </ul>
                       </div>
                     )}
